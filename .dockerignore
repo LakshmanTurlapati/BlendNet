@@ -1,0 +1,22 @@
+# Build output directories
+build-native/
+build-wasm/
+
+# Version control
+.git
+.gitignore
+
+# Planning and documentation
+.planning/
+
+# Dependencies
+node_modules/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

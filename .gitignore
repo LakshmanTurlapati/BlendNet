@@ -1,0 +1,22 @@
+# Build output directories (generated, not committed)
+build-native/
+build-wasm/
+wasm-deps/
+
+# Compilation cache
+.ccache/
+
+# Blender Mirror source (tracked separately or as submodule)
+Blender Mirror/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Node.js
+node_modules/
