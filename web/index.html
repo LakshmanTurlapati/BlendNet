@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blender Web - WASM Test</title>
+  <!-- SPDX-FileCopyrightText: 2026 Blender Web Authors -->
+  <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #1a1a1a;
+      color: #d0d0d0;
+      font-family: "Consolas", "Monaco", "Courier New", monospace;
+      font-size: 14px;
+      padding: 24px;
+    }
+    h1 {
+      color: #e8e8e8;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+    h2 {
+      color: #999;
+      font-size: 13px;
+      font-weight: normal;
+      margin-bottom: 20px;
+    }
+    #status {
+      list-style: none;
+      padding: 0;
+    }
+    #status li {
+      padding: 6px 0;
+      border-bottom: 1px solid #2a2a2a;
+      display: flex;
+      justify-content: space-between;
+    }
+    .label {
+      color: #999;
+    }
+    .pass {
+      color: #6fbf73;
+    }
+    .fail {
+      color: #e57373;
+    }
+    .warn {
+      color: #ffb74d;
+    }
+    .info {
+      color: #64b5f6;
+    }
+    #error-log {
+      margin-top: 20px;
+      padding: 12px;
+      background: #2a1a1a;
+      border: 1px solid #4a2a2a;
+      display: none;
+      white-space: pre-wrap;
+      font-size: 12px;
+      color: #e57373;
+    }
+  </style>
+</head>
+<body>
+  <h1>Blender Web - WASM Test</h1>
+  <h2>Headless build validation</h2>
+  <ul id="status"></ul>
+  <div id="error-log"></div>
+
+  <script>
+    // SPDX-FileCopyrightText: 2026 Blender Web Authors
+    // SPDX-License-Identifier: GPL-2.0-or-later
+
+    (function() {
+      "use strict";
+
+      var statusList = document.getElementById("status");
+      var errorLog = document.getElementById("error-log");
+
+      function addStatus(label, value, cls) {
+        var li = document.createElement("li");
+        var spanLabel = document.createElement("span");
+        spanLabel.className = "label";
+        spanLabel.textContent = label;
+        var spanValue = document.createElement("span");
+        spanValue.className = cls || "info";
+        spanValue.textContent = value;
+        li.appendChild(spanLabel);
+        li.appendChild(spanValue);
+        statusList.appendChild(li);
+      }
+
+      function logError(msg) {
+        errorLog.style.display = "block";
+        errorLog.textContent += msg + "\n";
+      }
+
+      // -- Check 1: Cross-Origin Isolation (BUILD-05) --
+      var coiStatus = self.crossOriginIsolated;
+      addStatus(
+        "Cross-Origin Isolation",
+        coiStatus ? "ENABLED" : "DISABLED (COOP/COEP headers required)",
+        coiStatus ? "pass" : "fail"
+      );
+
+      // -- Check 2: SharedArrayBuffer availability (BUILD-03) --
+      var sabAvailable = typeof SharedArrayBuffer !== "undefined";
+      addStatus(
+        "SharedArrayBuffer",
+        sabAvailable ? "AVAILABLE" : "NOT AVAILABLE (requires cross-origin isolation)",
+        sabAvailable ? "pass" : "fail"
+      );
+
+      // -- Check 3: Thread count --
+      var threadCount = navigator.hardwareConcurrency || 0;
+      addStatus(
+        "Hardware Concurrency",
+        threadCount + " logical cores",
+        threadCount > 0 ? "info" : "warn"
+      );
+
+      // -- Check 4: SIMD support (BUILD-08) --
+      var simdSupported = false;
+      try {
+        // Test for WASM SIMD 128-bit support using a minimal SIMD module
+        // This module contains a single v128.const instruction
+        simdSupported = WebAssembly.validate(new Uint8Array([
+          0x00, 0x61, 0x73, 0x6d, // magic
+          0x01, 0x00, 0x00, 0x00, // version
+          0x01, 0x05, 0x01,       // type section: 1 type
+          0x60, 0x00, 0x01, 0x7b, // func () -> v128
+          0x03, 0x02, 0x01, 0x00, // function section: 1 func of type 0
+          0x0a, 0x15, 0x01,       // code section
+          0x13, 0x00,             // func body, 0 locals
+          0xfd, 0x0c,             // v128.const
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+          0x0b                    // end
+        ]));
+      } catch (e) {
+        simdSupported = false;
+      }
+      addStatus(
+        "WASM SIMD 128-bit",
+        simdSupported ? "SUPPORTED" : "NOT SUPPORTED",
+        simdSupported ? "pass" : "warn"
+      );
+
+      // -- Check 5: WebAssembly streaming compilation (BUILD-07) --
+      var streamingAvailable = typeof WebAssembly.compileStreaming === "function"
+        || typeof WebAssembly.instantiateStreaming === "function";
+      addStatus(
+        "WASM Streaming Compilation",
+        streamingAvailable ? "AVAILABLE" : "NOT AVAILABLE (fallback to ArrayBuffer)",
+        streamingAvailable ? "pass" : "warn"
+      );
+
+      // -- Check 6: Load Blender WASM binary --
+      addStatus("WASM Module", "Loading...", "info");
+
+      var wasmPath = "../build-wasm/blender.js";
+      var wasmBinaryPath = "../build-wasm/blender.wasm";
+
+      // Track WASM binary size via fetch (BUILD-07 validation)
+      fetch(wasmBinaryPath)
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error("HTTP " + response.status + " loading " + wasmBinaryPath);
+          }
+          var contentLength = response.headers.get("Content-Length");
+          if (contentLength) {
+            var sizeBytes = parseInt(contentLength, 10);
+            var sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
+            var under30MB = sizeBytes < 30 * 1024 * 1024;
+            addStatus(
+              "WASM Binary Size",
+              sizeMB + " MB" + (under30MB ? " (within 30MB target)" : " (EXCEEDS 30MB target)"),
+              under30MB ? "pass" : "warn"
+            );
+          }
+          return response.arrayBuffer();
+        })
+        .then(function(buffer) {
+          addStatus("WASM Binary Fetch", "OK (" + buffer.byteLength + " bytes)", "pass");
+          // Attempt streaming compilation via instantiateStreaming
+          if (typeof WebAssembly.instantiateStreaming === "function") {
+            return WebAssembly.instantiateStreaming(
+              fetch(wasmBinaryPath),
+              {}
+            ).then(function(result) {
+              addStatus("WASM Streaming Instantiation", "SUCCESS", "pass");
+              return result;
+            });
+          } else {
+            return WebAssembly.instantiate(buffer, {}).then(function(result) {
+              addStatus("WASM Instantiation", "SUCCESS (non-streaming fallback)", "warn");
+              return result;
+            });
+          }
+        })
+        .catch(function(err) {
+          addStatus(
+            "WASM Binary",
+            "NOT FOUND or FAILED: " + err.message,
+            "fail"
+          );
+          logError("WASM binary load error: " + err.message);
+          logError("Expected at: " + wasmBinaryPath);
+          logError("Run the WASM build first (scripts/build-wasm.sh)");
+        });
+
+      // -- Check 7: Load Emscripten glue code and call exported functions --
+      var glueScript = document.createElement("script");
+      glueScript.src = wasmPath;
+      glueScript.onerror = function() {
+        addStatus(
+          "Emscripten Glue",
+          "NOT FOUND at " + wasmPath,
+          "fail"
+        );
+        logError("Emscripten glue code not found at: " + wasmPath);
+        logError("Run the WASM build first (scripts/build-wasm.sh)");
+      };
+      glueScript.onload = function() {
+        addStatus("Emscripten Glue", "LOADED", "pass");
+
+        // Wait for Module to be ready
+        if (typeof Module !== "undefined" && Module.onRuntimeInitialized) {
+          var origCallback = Module.onRuntimeInitialized;
+          Module.onRuntimeInitialized = function() {
+            if (origCallback) origCallback();
+            onModuleReady();
+          };
+        } else if (typeof Module !== "undefined") {
+          Module.onRuntimeInitialized = onModuleReady;
+        }
+      };
+
+      function onModuleReady() {
+        addStatus("WASM Runtime", "INITIALIZED", "pass");
+
+        // Call wasm_init (BUILD-01/02 validation)
+        try {
+          var initResult = Module.ccall("wasm_init", "number", [], []);
+          addStatus(
+            "wasm_init()",
+            "Returned: " + initResult + (initResult === 0 ? " (success)" : " (error)"),
+            initResult === 0 ? "pass" : "fail"
+          );
+        } catch (e) {
+          addStatus("wasm_init()", "FAILED: " + e.message, "fail");
+          logError("wasm_init error: " + e.message);
+        }
+
+        // Call wasm_memory_usage (BUILD-04 validation)
+        try {
+          var memUsage = Module.ccall("wasm_memory_usage", "number", [], []);
+          var memMB = (memUsage / (1024 * 1024)).toFixed(2);
+          addStatus(
+            "wasm_memory_usage()",
+            memMB + " MB (" + memUsage + " bytes)",
+            memUsage > 0 ? "pass" : "warn"
+          );
+        } catch (e) {
+          addStatus("wasm_memory_usage()", "FAILED: " + e.message, "fail");
+          logError("wasm_memory_usage error: " + e.message);
+        }
+
+        // Report WASM heap size
+        try {
+          var heapSize = Module.HEAP8.buffer.byteLength;
+          var heapMB = (heapSize / (1024 * 1024)).toFixed(2);
+          addStatus(
+            "WASM Heap Size",
+            heapMB + " MB (" + heapSize + " bytes)",
+            "info"
+          );
+        } catch (e) {
+          addStatus("WASM Heap Size", "Could not read: " + e.message, "warn");
+        }
+
+        // Update loading status
+        var items = statusList.getElementsByTagName("li");
+        for (var i = 0; i < items.length; i++) {
+          var val = items[i].getElementsByTagName("span")[1];
+          if (val && val.textContent === "Loading...") {
+            val.textContent = "READY";
+            val.className = "pass";
+          }
+        }
+      }
+
+      document.head.appendChild(glueScript);
+    })();
+  </script>
+</body>
+</html>
