@@ -35,7 +35,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Web Workers spawn successfully with SharedArrayBuffer, confirming pthreads are operational
   4. Memory allocation via MEM_guarded_alloc stays within 4GB ceiling and reports accurate usage statistics
   5. WASM binary size is under 30MB compressed (Brotli) with lazy loading configured for optional modules
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md -- Build system foundation: Dockerfile, CMake Emscripten config, host tools, dependencies
+- [ ] 01-02-PLAN.md -- Dev server with COOP/COEP headers, test HTML page, Node.js validation scripts
+- [ ] 01-03-PLAN.md -- Custom headless entry point, WASM compilation, threading/memory/main loop validation
 
 ### Phase 2: Browser Platform Integration
 **Goal**: Blender's window manager runs in a browser canvas with full input handling and lifecycle management
@@ -161,7 +166,7 @@ Note: Phases 6, 7, and 9 depend on Phase 4 (not each other) and can potentially 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Headless WASM Build | 0/TBD | Not started | - |
+| 1. Headless WASM Build | 0/3 | Planning complete | - |
 | 2. Browser Platform Integration | 0/TBD | Not started | - |
 | 3. WebGPU Viewport Backend | 0/TBD | Not started | - |
 | 4. Viewport & Core UI | 0/TBD | Not started | - |
