@@ -38,14 +38,13 @@ created: 2026-04-01
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 1-01-01 | 01 | 1 | BUILD-01 | build | `emcmake cmake .. && cmake --build .` | -- W0 | pending |
-| 1-01-02 | 01 | 1 | BUILD-02 | build | `cmake --build . 2>&1 \| grep -v error` | -- W0 | pending |
-| 1-02-01 | 02 | 1 | BUILD-03 | runtime | `node test-threading.js` | -- W0 | pending |
-| 1-02-02 | 02 | 1 | BUILD-04 | runtime | `node test-memory.js` | -- W0 | pending |
-| 1-03-01 | 03 | 2 | BUILD-05 | config | `grep -q "Cross-Origin" server.js` | -- W0 | pending |
-| 1-03-02 | 03 | 2 | BUILD-06 | runtime | `node test-main-loop.js` | -- W0 | pending |
-| 1-04-01 | 04 | 2 | BUILD-07 | build | `ls -la build-wasm/*.wasm.br` | -- W0 | pending |
-| 1-04-02 | 04 | 2 | BUILD-08 | build | `grep -q "SIMD" build-wasm/CMakeCache.txt` | -- W0 | pending |
+| 1-01-01 | 01 | 1 | BUILD-01 | build | `docker build -t blender-wasm . && test -f Dockerfile` | -- W0 | pending |
+| 1-01-02 | 01 | 1 | BUILD-02, BUILD-08 | build | `grep -q "msimd128" cmake/emscripten_overrides.cmake && grep -q "emcmake" scripts/build-wasm.sh` | -- W0 | pending |
+| 1-02-01 | 02 | 1 | BUILD-05 | config | `grep -q "Cross-Origin" web/serve.py` | -- W0 | pending |
+| 1-02-02 | 02 | 1 | BUILD-03 | runtime | `node scripts/test-threading.js` | -- W0 | pending |
+| 1-03-01 | 03 | 2 | BUILD-04, BUILD-06 | build | `test -f source/wasm_headless_main.cc && grep -q "EMSCRIPTEN_KEEPALIVE" source/wasm_headless_main.cc` | -- W0 | pending |
+| 1-03-02 | 03 | 2 | BUILD-07 | build | `grep -q "brotli" scripts/build-wasm.sh && test -f build-wasm/blender.wasm.br 2>/dev/null` | -- W0 | pending |
+| 1-03-03 | 03 | 2 | BUILD-01 | runtime | `node scripts/test-wasm-load.js` | -- W0 | pending |
 
 *Status: pending / green / red / flaky*
 
