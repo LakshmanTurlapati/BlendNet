@@ -207,127 +207,127 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUILD-01 | TBD | Pending |
-| BUILD-02 | TBD | Pending |
-| BUILD-03 | TBD | Pending |
-| BUILD-04 | TBD | Pending |
-| BUILD-05 | TBD | Pending |
-| BUILD-06 | TBD | Pending |
-| BUILD-07 | TBD | Pending |
-| BUILD-08 | TBD | Pending |
-| GHOST-01 | TBD | Pending |
-| GHOST-02 | TBD | Pending |
-| GHOST-03 | TBD | Pending |
-| GHOST-04 | TBD | Pending |
-| GHOST-05 | TBD | Pending |
-| GHOST-06 | TBD | Pending |
-| GHOST-07 | TBD | Pending |
-| GHOST-08 | TBD | Pending |
-| GPU-01 | TBD | Pending |
-| GPU-02 | TBD | Pending |
-| GPU-03 | TBD | Pending |
-| GPU-04 | TBD | Pending |
-| GPU-05 | TBD | Pending |
-| GPU-06 | TBD | Pending |
-| GPU-07 | TBD | Pending |
-| GPU-08 | TBD | Pending |
-| GPU-09 | TBD | Pending |
-| VIEW-01 | TBD | Pending |
-| VIEW-02 | TBD | Pending |
-| VIEW-03 | TBD | Pending |
-| VIEW-04 | TBD | Pending |
-| VIEW-05 | TBD | Pending |
-| VIEW-06 | TBD | Pending |
-| VIEW-07 | TBD | Pending |
-| EEVEE-01 | TBD | Pending |
-| EEVEE-02 | TBD | Pending |
-| EEVEE-03 | TBD | Pending |
-| EEVEE-04 | TBD | Pending |
-| EEVEE-05 | TBD | Pending |
-| EEVEE-06 | TBD | Pending |
-| EEVEE-07 | TBD | Pending |
-| CYCLES-01 | TBD | Pending |
-| CYCLES-02 | TBD | Pending |
-| CYCLES-03 | TBD | Pending |
-| CYCLES-04 | TBD | Pending |
-| CYCLES-05 | TBD | Pending |
-| CYCLES-06 | TBD | Pending |
-| MODEL-01 | TBD | Pending |
-| MODEL-02 | TBD | Pending |
-| MODEL-03 | TBD | Pending |
-| MODEL-04 | TBD | Pending |
-| MODEL-05 | TBD | Pending |
-| MODEL-06 | TBD | Pending |
-| MODEL-07 | TBD | Pending |
-| SCULPT-01 | TBD | Pending |
-| SCULPT-02 | TBD | Pending |
-| SCULPT-03 | TBD | Pending |
-| SCULPT-04 | TBD | Pending |
-| SCULPT-05 | TBD | Pending |
-| MAT-01 | TBD | Pending |
-| MAT-02 | TBD | Pending |
-| MAT-03 | TBD | Pending |
-| MAT-04 | TBD | Pending |
-| MAT-05 | TBD | Pending |
-| GEONODE-01 | TBD | Pending |
-| GEONODE-02 | TBD | Pending |
-| GEONODE-03 | TBD | Pending |
-| GEONODE-04 | TBD | Pending |
-| GEONODE-05 | TBD | Pending |
-| ANIM-01 | TBD | Pending |
-| ANIM-02 | TBD | Pending |
-| ANIM-03 | TBD | Pending |
-| ANIM-04 | TBD | Pending |
-| ANIM-05 | TBD | Pending |
-| ANIM-06 | TBD | Pending |
-| ANIM-07 | TBD | Pending |
-| ANIM-08 | TBD | Pending |
-| ANIM-09 | TBD | Pending |
-| ANIM-10 | TBD | Pending |
-| GP-01 | TBD | Pending |
-| GP-02 | TBD | Pending |
-| GP-03 | TBD | Pending |
-| GP-04 | TBD | Pending |
-| PHYS-01 | TBD | Pending |
-| PHYS-02 | TBD | Pending |
-| PHYS-03 | TBD | Pending |
-| PHYS-04 | TBD | Pending |
-| PHYS-05 | TBD | Pending |
-| COMP-01 | TBD | Pending |
-| COMP-02 | TBD | Pending |
-| COMP-03 | TBD | Pending |
-| COMP-04 | TBD | Pending |
-| COMP-05 | TBD | Pending |
-| VSE-01 | TBD | Pending |
-| VSE-02 | TBD | Pending |
-| VSE-03 | TBD | Pending |
-| VSE-04 | TBD | Pending |
-| VSE-05 | TBD | Pending |
-| PY-01 | TBD | Pending |
-| PY-02 | TBD | Pending |
-| PY-03 | TBD | Pending |
-| PY-04 | TBD | Pending |
-| PY-05 | TBD | Pending |
-| PY-06 | TBD | Pending |
-| FILE-01 | TBD | Pending |
-| FILE-02 | TBD | Pending |
-| FILE-03 | TBD | Pending |
-| FILE-04 | TBD | Pending |
-| FILE-05 | TBD | Pending |
-| FILE-06 | TBD | Pending |
-| FILE-07 | TBD | Pending |
-| FILE-08 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
-| UI-05 | TBD | Pending |
+| BUILD-01 | Phase 1 | Pending |
+| BUILD-02 | Phase 1 | Pending |
+| BUILD-03 | Phase 1 | Pending |
+| BUILD-04 | Phase 1 | Pending |
+| BUILD-05 | Phase 1 | Pending |
+| BUILD-06 | Phase 1 | Pending |
+| BUILD-07 | Phase 1 | Pending |
+| BUILD-08 | Phase 1 | Pending |
+| GHOST-01 | Phase 2 | Pending |
+| GHOST-02 | Phase 2 | Pending |
+| GHOST-03 | Phase 2 | Pending |
+| GHOST-04 | Phase 2 | Pending |
+| GHOST-05 | Phase 2 | Pending |
+| GHOST-06 | Phase 2 | Pending |
+| GHOST-07 | Phase 2 | Pending |
+| GHOST-08 | Phase 2 | Pending |
+| GPU-01 | Phase 3 | Pending |
+| GPU-02 | Phase 3 | Pending |
+| GPU-03 | Phase 3 | Pending |
+| GPU-04 | Phase 3 | Pending |
+| GPU-05 | Phase 3 | Pending |
+| GPU-06 | Phase 3 | Pending |
+| GPU-07 | Phase 3 | Pending |
+| GPU-08 | Phase 3 | Pending |
+| GPU-09 | Phase 3 | Pending |
+| VIEW-01 | Phase 4 | Pending |
+| VIEW-02 | Phase 4 | Pending |
+| VIEW-03 | Phase 4 | Pending |
+| VIEW-04 | Phase 4 | Pending |
+| VIEW-05 | Phase 4 | Pending |
+| VIEW-06 | Phase 4 | Pending |
+| VIEW-07 | Phase 4 | Pending |
+| EEVEE-01 | Phase 5 | Pending |
+| EEVEE-02 | Phase 5 | Pending |
+| EEVEE-03 | Phase 5 | Pending |
+| EEVEE-04 | Phase 5 | Pending |
+| EEVEE-05 | Phase 5 | Pending |
+| EEVEE-06 | Phase 5 | Pending |
+| EEVEE-07 | Phase 5 | Pending |
+| CYCLES-01 | Phase 8 | Pending |
+| CYCLES-02 | Phase 8 | Pending |
+| CYCLES-03 | Phase 8 | Pending |
+| CYCLES-04 | Phase 8 | Pending |
+| CYCLES-05 | Phase 8 | Pending |
+| CYCLES-06 | Phase 8 | Pending |
+| MODEL-01 | Phase 6 | Pending |
+| MODEL-02 | Phase 6 | Pending |
+| MODEL-03 | Phase 6 | Pending |
+| MODEL-04 | Phase 6 | Pending |
+| MODEL-05 | Phase 6 | Pending |
+| MODEL-06 | Phase 6 | Pending |
+| MODEL-07 | Phase 6 | Pending |
+| SCULPT-01 | Phase 6 | Pending |
+| SCULPT-02 | Phase 6 | Pending |
+| SCULPT-03 | Phase 6 | Pending |
+| SCULPT-04 | Phase 6 | Pending |
+| SCULPT-05 | Phase 6 | Pending |
+| MAT-01 | Phase 5 | Pending |
+| MAT-02 | Phase 5 | Pending |
+| MAT-03 | Phase 5 | Pending |
+| MAT-04 | Phase 5 | Pending |
+| MAT-05 | Phase 5 | Pending |
+| GEONODE-01 | Phase 6 | Pending |
+| GEONODE-02 | Phase 6 | Pending |
+| GEONODE-03 | Phase 6 | Pending |
+| GEONODE-04 | Phase 6 | Pending |
+| GEONODE-05 | Phase 6 | Pending |
+| ANIM-01 | Phase 7 | Pending |
+| ANIM-02 | Phase 7 | Pending |
+| ANIM-03 | Phase 7 | Pending |
+| ANIM-04 | Phase 7 | Pending |
+| ANIM-05 | Phase 7 | Pending |
+| ANIM-06 | Phase 7 | Pending |
+| ANIM-07 | Phase 7 | Pending |
+| ANIM-08 | Phase 7 | Pending |
+| ANIM-09 | Phase 7 | Pending |
+| ANIM-10 | Phase 7 | Pending |
+| GP-01 | Phase 7 | Pending |
+| GP-02 | Phase 7 | Pending |
+| GP-03 | Phase 7 | Pending |
+| GP-04 | Phase 7 | Pending |
+| PHYS-01 | Phase 10 | Pending |
+| PHYS-02 | Phase 10 | Pending |
+| PHYS-03 | Phase 10 | Pending |
+| PHYS-04 | Phase 10 | Pending |
+| PHYS-05 | Phase 10 | Pending |
+| COMP-01 | Phase 10 | Pending |
+| COMP-02 | Phase 10 | Pending |
+| COMP-03 | Phase 10 | Pending |
+| COMP-04 | Phase 10 | Pending |
+| COMP-05 | Phase 10 | Pending |
+| VSE-01 | Phase 10 | Pending |
+| VSE-02 | Phase 10 | Pending |
+| VSE-03 | Phase 10 | Pending |
+| VSE-04 | Phase 10 | Pending |
+| VSE-05 | Phase 10 | Pending |
+| PY-01 | Phase 9 | Pending |
+| PY-02 | Phase 9 | Pending |
+| PY-03 | Phase 9 | Pending |
+| PY-04 | Phase 9 | Pending |
+| PY-05 | Phase 9 | Pending |
+| PY-06 | Phase 9 | Pending |
+| FILE-01 | Phase 9 | Pending |
+| FILE-02 | Phase 9 | Pending |
+| FILE-03 | Phase 9 | Pending |
+| FILE-04 | Phase 9 | Pending |
+| FILE-05 | Phase 9 | Pending |
+| FILE-06 | Phase 9 | Pending |
+| FILE-07 | Phase 9 | Pending |
+| FILE-08 | Phase 9 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 97 total
-- Mapped to phases: 0
-- Unmapped: 97
+- v1 requirements: 115 total
+- Mapped to phases: 115
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after initial definition*
+*Last updated: 2026-04-01 after roadmap creation (traceability updated)*
