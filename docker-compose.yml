@@ -14,13 +14,18 @@ services:
       dockerfile: Dockerfile
     volumes:
       # Blender source -- mounted read-only to prevent accidental modification
-      - ./Blender Mirror:/src/blender:ro
+      # Path must match what build scripts expect: ${PROJECT_ROOT}/Blender Mirror
+      - "./Blender Mirror:/src/Blender Mirror:ro"
       # Native host tools build output (Stage 1)
       - ./build-native:/src/build-native
       # WASM build output (Stage 3)
       - ./build-wasm:/src/build-wasm
       # Compilation cache for faster rebuilds
       - ./.ccache:/src/.ccache
+      # Mount project scripts and cmake for live editing during iterative fixes
+      - ./scripts:/src/scripts
+      - ./cmake:/src/cmake
+      - ./source:/src/source
     environment:
       EMSDK: /emsdk
       CCACHE_DIR: /src/.ccache
