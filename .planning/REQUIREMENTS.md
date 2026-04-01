@@ -11,11 +11,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **BUILD-01**: Blender C/C++ source compiles to WebAssembly via Emscripten 5.0.4+
 - [x] **BUILD-02**: All required third-party dependencies compile to WASM (or have WASM-compatible replacements)
-- [ ] **BUILD-03**: Threading works via Emscripten pthreads mapped to Web Workers with SharedArrayBuffer
-- [ ] **BUILD-04**: Memory allocation works within WASM32 4GB address space with MEM_guarded_alloc
+- [x] **BUILD-03**: Threading works via Emscripten pthreads mapped to Web Workers with SharedArrayBuffer
+- [x] **BUILD-04**: Memory allocation works within WASM32 4GB address space with MEM_guarded_alloc
 - [ ] **BUILD-05**: COOP/COEP headers configured for cross-origin isolation
-- [ ] **BUILD-06**: Main loop converted to non-blocking via emscripten_set_main_loop or PROXY_TO_PTHREAD
-- [ ] **BUILD-07**: WASM binary is served compressed (Brotli/gzip), with lazy loading for large modules
+- [x] **BUILD-06**: Main loop converted to non-blocking via emscripten_set_main_loop or PROXY_TO_PTHREAD
+- [x] **BUILD-07**: WASM binary is served compressed (Brotli/gzip), with lazy loading for large modules
 - [x] **BUILD-08**: WASM SIMD enabled for math-heavy operations
 
 ### Platform Abstraction (GHOST)
@@ -209,11 +209,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | BUILD-01 | Phase 1 | Complete |
 | BUILD-02 | Phase 1 | Complete |
-| BUILD-03 | Phase 1 | Pending |
-| BUILD-04 | Phase 1 | Pending |
+| BUILD-03 | Phase 1 | Complete |
+| BUILD-04 | Phase 1 | Complete |
 | BUILD-05 | Phase 1 | Pending |
-| BUILD-06 | Phase 1 | Pending |
-| BUILD-07 | Phase 1 | Pending |
+| BUILD-06 | Phase 1 | Complete |
+| BUILD-07 | Phase 1 | Complete |
 | BUILD-08 | Phase 1 | Complete |
 | GHOST-01 | Phase 2 | Pending |
 | GHOST-02 | Phase 2 | Pending |
