@@ -41,7 +41,7 @@ Plans:
 - [x] 01-01-PLAN.md -- Build system foundation: Dockerfile, CMake Emscripten config, host tools, dependencies
 - [x] 01-02-PLAN.md -- Dev server with COOP/COEP headers, test HTML page, Node.js validation scripts
 - [x] 01-03-PLAN.md -- Custom headless entry point, WASM compilation, threading/memory/main loop validation
-- [ ] 01-04-PLAN.md -- [GAP CLOSURE] Execute three-stage WASM build pipeline, produce blender.wasm and blender.wasm.br
+- [x] 01-04-PLAN.md -- [GAP CLOSURE] Execute three-stage WASM build pipeline, produce blender.wasm and blender.wasm.br
 - [ ] 01-05-PLAN.md -- [GAP CLOSURE] Runtime validation: Node.js tests, browser verification, .blend file loading
 
 ### Phase 2: Browser Platform Integration
