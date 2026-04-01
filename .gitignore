@@ -6,6 +6,11 @@ wasm-deps/
 # Compilation cache
 .ccache/
 
+# WASM binary artifacts
+*.wasm
+*.wasm.br
+*.wasm.gz
+
 # Blender Mirror source (tracked separately or as submodule)
 Blender Mirror/
 

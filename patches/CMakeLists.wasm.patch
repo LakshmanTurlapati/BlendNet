@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Blender Web Authors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# CMakeLists.wasm.patch -- Blender CMake Compatibility Notes for WASM
+#
+# Status: NO PATCHES REQUIRED AT THIS TIME
+#
+# The current approach uses cmake/emscripten_overrides.cmake (loaded via
+# -C flag) and cmake/wasm_sources.cmake to configure the WASM build
+# without modifying Blender's own CMakeLists.txt.
+#
+# Key mechanisms that avoid patching:
+#
+#   1. -C flag loads emscripten_overrides.cmake as an initial cache file,
+#      setting WASM compile/link flags before Blender's CMakeLists.txt runs.
+#
+#   2. WITH_HEADLESS=ON and 35 WITH_*=OFF flags disable features that
+#      require platform-specific dependencies (GPU, audio, Python, etc.).
+#
+#   3. The custom entry point (source/wasm_headless_main.cc) is compiled
+#      separately and linked via the build script, replacing creator.cc.
+#
+#   4. #ifdef __EMSCRIPTEN__ guards in the entry point handle any
+#      platform-specific behavior.
+#
+# If future phases require changes to Blender's CMakeLists.txt (e.g., for
+# GPU backend integration or Python support), patches will be added here
+# with clear documentation of what they change and why.
+#
+# Prefer these alternatives over patching:
+#   - CMake cache overrides (-D flags)
+#   - #ifdef __EMSCRIPTEN__ guards in custom source files
+#   - Wrapper scripts that adjust the build environment
+#   - Separate CMake targets for WASM-specific components
