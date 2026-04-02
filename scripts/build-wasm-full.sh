@@ -26,6 +26,10 @@ CMAKE_DIR="${PROJECT_ROOT}/cmake"
 
 BUILD_START_TIME=$(date +%s)
 
+detect_jobs() {
+    nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4
+}
+
 log() {
     echo "[$(date -u '+%H:%M:%S')] $*"
 }
@@ -35,6 +39,27 @@ fail() {
     log "Error: $2"
     log "Suggestion: $3"
     exit 1
+}
+
+run_with_retry() {
+    local attempts="${1:?missing retry attempts}"
+    local delay_seconds="${2:?missing retry delay}"
+    shift 2
+
+    local attempt=1
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+
+        if [ "${attempt}" -ge "${attempts}" ]; then
+            return 1
+        fi
+
+        attempt=$((attempt + 1))
+        log "Retrying command (${attempt}/${attempts}) after ${delay_seconds}s: $*"
+        sleep "${delay_seconds}"
+    done
 }
 
 log "=========================================="
@@ -58,6 +83,28 @@ if [ -f "${PROJECT_ROOT}/scripts/setup-wasm-deps.sh" ]; then
 else
     fail "setup-wasm-deps" "scripts/setup-wasm-deps.sh not found" "Ensure project is correctly mounted"
 fi
+
+# ==========================================================================
+# Stage 1b: Apply tracked source compatibility patches
+# ==========================================================================
+log ""
+log "=== Stage 1b: Source Compatibility Patches ==="
+
+for patch_file in "${PROJECT_ROOT}"/patches/*.wasm32.patch; do
+    if [ ! -f "${patch_file}" ]; then
+        continue
+    fi
+
+    patch_name="$(basename "${patch_file}")"
+    if git -C "${BLENDER_SRC}" apply --reverse --check "${patch_file}" >/dev/null 2>&1; then
+        log "Patch already applied: ${patch_name}"
+        continue
+    fi
+
+    log "Applying source patch: ${patch_name}"
+    git -C "${BLENDER_SRC}" apply "${patch_file}" || \
+        fail "source-patch" "Failed to apply ${patch_name}" "Check Blender Mirror patch drift or local source changes"
+done
 
 # Install additional packages needed for host tool compilation and headers
 log "Installing additional system packages (sse2neon, Eigen3)..."
@@ -109,8 +156,9 @@ log ""
 log "=== Stage 2: Native Host Tools + Node.js ==="
 
 # Hybrid strategy:
-# - makesdna + datatoc + shader_tool: build natively with GCC-14
-# - makesrna: link as WASM and run through node from build.ninja
+# - makesdna + makesrna: link as WASM and run through node for wasm32-correct
+#   DNA/RNA generation
+# - datatoc + shader_tool: build natively with GCC-14
 
 # Install fmt headers for host tools
 if [ ! -f /usr/include/fmt/format.h ]; then
@@ -156,7 +204,7 @@ source /emsdk/emsdk_env.sh 2>/dev/null || true
 
 if [ -f "${PROJECT_ROOT}/scripts/build-wasm-deps.sh" ]; then
     log "Running build-wasm-deps.sh..."
-    bash "${PROJECT_ROOT}/scripts/build-wasm-deps.sh" || \
+    run_with_retry 3 5 bash "${PROJECT_ROOT}/scripts/build-wasm-deps.sh" || \
         fail "wasm-deps" "Emscripten port verification failed" "Check emcc is working"
     log "Emscripten ports verified."
 fi
@@ -170,8 +218,37 @@ log "=== Stage 4: CMake Configuration ==="
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
-# Only reconfigure if CMakeCache.txt is missing or stale
+# Reconfigure when the initial cache inputs or CMake shim files change.
+needs_reconfigure=0
 if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]; then
+    needs_reconfigure=1
+else
+    for input in \
+        "${CMAKE_DIR}/emscripten_overrides.cmake" \
+        "${CMAKE_DIR}/wasm_sources.cmake" \
+        "${PROJECT_ROOT}/source/wasm_headless_main.cc" \
+        "${PROJECT_ROOT}/scripts/build-wasm-full.sh" \
+        "${PROJECT_ROOT}/scripts/build-wasm.sh"; do
+        if [ "${input}" -nt "${BUILD_DIR}/CMakeCache.txt" ]; then
+            needs_reconfigure=1
+            break
+        fi
+    done
+
+    if [ "${needs_reconfigure}" -eq 0 ] && \
+        find "${CMAKE_DIR}/fake_modules" "${CMAKE_DIR}/stubs" -type f -newer "${BUILD_DIR}/CMakeCache.txt" \
+            | grep -q .; then
+        needs_reconfigure=1
+    fi
+
+    if [ "${needs_reconfigure}" -eq 0 ] && \
+        find "${PROJECT_ROOT}/patches" -type f -name '*.wasm32.patch' -newer "${BUILD_DIR}/CMakeCache.txt" \
+            | grep -q .; then
+        needs_reconfigure=1
+    fi
+fi
+
+if [ "${needs_reconfigure}" -eq 1 ]; then
     log "Running emcmake cmake..."
     emcmake cmake "${BLENDER_SRC}" \
         -G Ninja \
@@ -190,6 +267,7 @@ if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]; then
         -DWITH_MOD_REMESH=ON \
         \
         -DWITH_PYTHON=OFF \
+        -DWITH_BLENDER_THUMBNAILER=OFF \
         -DWITH_CYCLES=OFF \
         -DWITH_GHOST_SDL=OFF \
         -DWITH_GHOST_X11=OFF \
@@ -237,10 +315,11 @@ if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]; then
         -DWITH_QUADRIFLOW=OFF \
         || fail "cmake-config" "CMake configuration failed" "Check CMake output above"
 
+    rm -f "${BUILD_DIR}/build.ninja.orig"
     log "CMake configuration complete."
 else
     log "CMakeCache.txt exists, skipping reconfiguration."
-    log "Delete build-wasm/CMakeCache.txt to force reconfigure."
+    log "No newer CMake inputs detected."
 fi
 
 # ==========================================================================
@@ -270,10 +349,11 @@ cd "${BUILD_DIR}"
 source /emsdk/emsdk_env.sh 2>/dev/null || true
 
 COMPILE_START=$(date +%s)
-log "Starting WASM compilation with $(nproc) cores..."
+JOBS="$(detect_jobs)"
+log "Starting WASM compilation with ${JOBS} cores..."
 
 # Run the actual WASM build
-emmake ninja -j$(nproc) 2>&1 || {
+emmake ninja -j"${JOBS}" 2>&1 || {
     NINJA_EXIT=$?
     log "WARNING: ninja exited with code ${NINJA_EXIT}"
     log "Some targets may have failed. Checking for output artifacts..."

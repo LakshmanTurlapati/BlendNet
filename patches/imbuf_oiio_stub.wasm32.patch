@@ -1,0 +1,354 @@
+diff --git a/source/blender/imbuf/CMakeLists.txt b/source/blender/imbuf/CMakeLists.txt
+index 7df02f42a66..0c0bb7a5967 100644
+--- a/source/blender/imbuf/CMakeLists.txt
++++ b/source/blender/imbuf/CMakeLists.txt
+@@ -4,6 +4,9 @@
+ 
+ add_subdirectory(movie)
+ add_subdirectory(opencolorio)
++if(NOT EMSCRIPTEN)
++  add_subdirectory(oiio)
++endif()
+ 
+ set(INC
+   PUBLIC .
+@@ -22,17 +25,9 @@ set(SRC
+   intern/conversion.cc
+   intern/filetype.cc
+   intern/filter.cc
+-  intern/format_avif.cc
+-  intern/format_bmp.cc
+-  intern/format_dds.cc
+-  intern/format_hdr.cc
+   intern/format_iris.cc
+   intern/format_jpeg.cc
+-  intern/format_png.cc
+-  intern/format_psd.cc
+   intern/format_svg.cc
+-  intern/format_targa.cc
+-  intern/format_tiff.cc
+   intern/imageprocess.cc
+   intern/interp.cc
+   intern/metadata.cc
+@@ -74,7 +69,6 @@ set(LIB
+   PRIVATE bf::depsgraph
+   PRIVATE bf::dna
+   PRIVATE bf::gpu
+-  bf_imbuf_openimageio
+   PRIVATE bf::intern::atomic
+   PRIVATE bf::intern::clog
+   PRIVATE bf::intern::guardedalloc
+@@ -84,10 +78,30 @@ set(LIB
+ 
+   PRIVATE bf::sequencer
+   PRIVATE bf::dependencies::zlib
+-  PRIVATE bf::dependencies::openimageio
+   PRIVATE bf::dependencies::jpeg
+ )
+ 
++if(EMSCRIPTEN)
++  list(APPEND SRC
++    intern/format_oiio_stub.cc
++  )
++else()
++  list(APPEND SRC
++    intern/format_avif.cc
++    intern/format_bmp.cc
++    intern/format_dds.cc
++    intern/format_hdr.cc
++    intern/format_png.cc
++    intern/format_psd.cc
++    intern/format_targa.cc
++    intern/format_tiff.cc
++  )
++  list(APPEND LIB
++    bf_imbuf_openimageio
++    PRIVATE bf::dependencies::openimageio
++  )
++endif()
++
+ if(WITH_IMAGE_OPENEXR)
+   list(APPEND LIB
+     bf_imbuf_openexr
+@@ -109,9 +123,11 @@ if(WITH_IMAGE_OPENJPEG)
+ endif()
+ 
+ if(WITH_IMAGE_CINEON)
+-  list(APPEND SRC
+-    intern/format_dpx.cc
+-  )
++  if(NOT EMSCRIPTEN)
++    list(APPEND SRC
++      intern/format_dpx.cc
++    )
++  endif()
+   list(APPEND LIB
+     bf_imbuf_cineon
+   )
+@@ -119,12 +135,14 @@ if(WITH_IMAGE_CINEON)
+ endif()
+ 
+ if(WITH_IMAGE_WEBP)
+-  list(APPEND SRC
+-    intern/format_webp.cc
+-  )
+-  list(APPEND LIB
+-    PRIVATE bf::dependencies::optional::webp
+-  )
++  if(NOT EMSCRIPTEN)
++    list(APPEND SRC
++      intern/format_webp.cc
++    )
++    list(APPEND LIB
++      PRIVATE bf::dependencies::optional::webp
++    )
++  endif()
+ endif()
+ 
+ if(WIN32)
+diff --git a/source/blender/imbuf/intern/oiio/CMakeLists.txt b/source/blender/imbuf/intern/oiio/CMakeLists.txt
+index a4c8df53b2d..a3a52129d9f 100644
+--- a/source/blender/imbuf/intern/oiio/CMakeLists.txt
++++ b/source/blender/imbuf/intern/oiio/CMakeLists.txt
+@@ -2,6 +2,10 @@
+ #
+ # SPDX-License-Identifier: GPL-2.0-or-later
+ 
++if(EMSCRIPTEN)
++  return()
++endif()
++
+ set(INC
+   .
+   ..
+diff --git a/source/blender/imbuf/intern/format_oiio_stub.cc b/source/blender/imbuf/intern/format_oiio_stub.cc
+new file mode 100644
+index 00000000000..b3fff20aa43
+--- /dev/null
++++ b/source/blender/imbuf/intern/format_oiio_stub.cc
+@@ -0,0 +1,225 @@
++/* SPDX-FileCopyrightText: 2026 Blender Authors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * \ingroup imbuf
++ *
++ * Headless WASM builds skip Blender's OpenImageIO-backed loaders. Keep the
++ * file-type registry linkable by providing no-op implementations.
++ */
++
++#include "IMB_filetype.hh"
++
++#include "oiio/openimageio_api.h"
++
++namespace blender {
++
++const char *imb_file_extensions_png[] = {".png", nullptr};
++const char *imb_file_extensions_tga[] = {".tga", ".tpic", nullptr};
++const char *imb_file_extensions_bmp[] = {".bmp", ".dib", nullptr};
++const char *imb_file_extensions_cineon[] = {".cin", nullptr};
++const char *imb_file_extensions_dpx[] = {".dpx", nullptr};
++const char *imb_file_extensions_hdr[] = {".hdr", nullptr};
++const char *imb_file_extensions_tiff[] = {".tif", ".tiff", ".tx", nullptr};
++const char *imb_file_extensions_webp[] = {".webp", nullptr};
++const char *imb_file_extensions_dds[] = {".dds", nullptr};
++const char *imb_file_extensions_psd[] = {".psd", ".pdd", ".psb", nullptr};
++const char *imb_file_extensions_avif[] = {".avif", nullptr};
++
++bool imb_is_a_png(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_png(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_png(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_tga(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_tga(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_tga(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_bmp(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_bmp(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_bmp(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_dpx(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_dpx(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_dpx(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_hdr(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_hdr(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_hdr(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_tiff(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_tiff(const unsigned char * /*mem*/,
++                     size_t /*size*/,
++                     int /*flags*/,
++                     ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_tiff(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++bool imb_is_a_webp(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_loadwebp(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++ImBuf *imb_load_filepath_thumbnail_webp(const char * /*filepath*/,
++                                        const int /*flags*/,
++                                        const size_t /*max_thumb_size*/,
++                                        ImFileColorSpace & /*r_colorspace*/,
++                                        size_t *r_width,
++                                        size_t *r_height)
++{
++  if (r_width != nullptr) {
++    *r_width = 0;
++  }
++  if (r_height != nullptr) {
++    *r_height = 0;
++  }
++  return nullptr;
++}
++
++bool imb_savewebp(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++void imb_init_dds() {}
++
++bool imb_is_a_dds(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_dds(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_is_a_psd(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_psd(const unsigned char * /*mem*/,
++                    size_t /*size*/,
++                    int /*flags*/,
++                    ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_is_a_avif(const unsigned char * /*mem*/, size_t /*size*/)
++{
++  return false;
++}
++
++ImBuf *imb_load_avif(const unsigned char * /*mem*/,
++                     size_t /*size*/,
++                     int /*flags*/,
++                     ImFileColorSpace & /*r_colorspace*/)
++{
++  return nullptr;
++}
++
++bool imb_save_avif(ImBuf * /*ibuf*/, const char * /*filepath*/, int /*flags*/)
++{
++  return false;
++}
++
++void OIIO_init() {}
++
++int OIIO_getVersionHex()
++{
++  return 0;
++}
++
++}  // namespace blender

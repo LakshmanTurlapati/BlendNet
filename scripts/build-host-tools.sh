@@ -84,7 +84,12 @@ echo "[host-tools] Verifying built executables..."
 for tool in makesdna datatoc shader_tool; do
     TOOL_PATH="${BUILD_DIR}/${tool}"
     if [ -x "${TOOL_PATH}" ]; then
-        echo "[host-tools] FOUND: ${TOOL_PATH} ($(file -b "${TOOL_PATH}" | head -c 40))"
+        if command -v file >/dev/null 2>&1; then
+            TOOL_DESC=" ($(file -b "${TOOL_PATH}" | head -c 40))"
+        else
+            TOOL_DESC=""
+        fi
+        echo "[host-tools] FOUND: ${TOOL_PATH}${TOOL_DESC}"
     else
         echo "[host-tools] ERROR: ${tool} not found or not executable at ${TOOL_PATH}" >&2
         exit 1

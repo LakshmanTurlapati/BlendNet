@@ -24,7 +24,11 @@ set(WASM_COMPILE_FLAGS
   -msimd128
   -mrelaxed-simd
   -fwasm-exceptions
+  -include
+  stdlib.h
   -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0
+  -DFE_DIVBYZERO=0
+  -DFE_INVALID=0
 )
 
 # =============================================================================
@@ -60,8 +64,17 @@ set(WASM_LINK_FLAGS
 )
 
 # =============================================================================
-# Apply Flags
+# Propagate Flags Through The Initial Cache
 # =============================================================================
+
+string(REPLACE ";" " " WASM_COMPILE_FLAGS_STR "${WASM_COMPILE_FLAGS}")
+string(REPLACE ";" " " WASM_LINK_FLAGS_STR "${WASM_LINK_FLAGS}")
+
+set(CMAKE_C_FLAGS "${WASM_COMPILE_FLAGS_STR}" CACHE STRING "Blender Web WASM C flags" FORCE)
+set(CMAKE_CXX_FLAGS "${WASM_COMPILE_FLAGS_STR}" CACHE STRING "Blender Web WASM C++ flags" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS "${WASM_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM executable link flags" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS "${WASM_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM shared link flags" FORCE)
+set(CMAKE_MODULE_LINKER_FLAGS "${WASM_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM module link flags" FORCE)
 
 add_compile_options(${WASM_COMPILE_FLAGS})
 add_link_options(${WASM_LINK_FLAGS})
@@ -72,6 +85,11 @@ add_link_options(${WASM_LINK_FLAGS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Debug: assertions, source maps, readable output
+  set(CMAKE_C_FLAGS_DEBUG "-g -gsource-map" CACHE STRING "Blender Web WASM debug C flags" FORCE)
+  set(CMAKE_CXX_FLAGS_DEBUG "-g -gsource-map" CACHE STRING "Blender Web WASM debug C++ flags" FORCE)
+  set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-sASSERTIONS=2 -g -gsource-map" CACHE STRING "Blender Web WASM debug executable link flags" FORCE)
+  set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "-sASSERTIONS=2 -g -gsource-map" CACHE STRING "Blender Web WASM debug shared link flags" FORCE)
+  set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "-sASSERTIONS=2 -g -gsource-map" CACHE STRING "Blender Web WASM debug module link flags" FORCE)
   add_compile_options(-g -gsource-map)
   add_link_options(
     -sASSERTIONS=2
@@ -80,6 +98,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   )
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
   # Release: maximum optimization, closure compiler for JS minification
+  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "Blender Web WASM release C flags" FORCE)
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "Blender Web WASM release C++ flags" FORCE)
+  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release executable link flags" FORCE)
+  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release shared link flags" FORCE)
+  set(CMAKE_MODULE_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release module link flags" FORCE)
   add_compile_options(-O3)
   add_link_options(
     -O3

@@ -27,6 +27,10 @@ BUILD_DIR="${PROJECT_ROOT}/build-wasm"
 BLENDER_SRC="${PROJECT_ROOT}/Blender Mirror"
 CMAKE_DIR="${PROJECT_ROOT}/cmake"
 
+detect_jobs() {
+    nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4
+}
+
 echo "[build-wasm] Stage 3: Cross-compiling Blender to WebAssembly"
 echo "[build-wasm] Blender source: ${BLENDER_SRC}"
 echo "[build-wasm] Build directory: ${BUILD_DIR}"
@@ -89,6 +93,7 @@ emcmake cmake "${BLENDER_SRC}" \
     -DWITH_MOD_REMESH=ON \
     \
     -DWITH_PYTHON=OFF \
+    -DWITH_BLENDER_THUMBNAILER=OFF \
     -DWITH_CYCLES=OFF \
     -DWITH_GHOST_SDL=OFF \
     -DWITH_GHOST_X11=OFF \
@@ -126,7 +131,7 @@ echo "[build-wasm] CMake configuration complete."
 
 echo "[build-wasm] Starting WASM compilation..."
 
-emmake ninja -j$(nproc)
+emmake ninja -j"$(detect_jobs)"
 
 echo "[build-wasm] WASM compilation complete."
 

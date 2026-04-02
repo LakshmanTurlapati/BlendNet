@@ -1,0 +1,79 @@
+diff --git a/source/blender/makesdna/intern/makesdna.cc b/source/blender/makesdna/intern/makesdna.cc
+index ffdc753214e..2ff259c7cf7 100644
+--- a/source/blender/makesdna/intern/makesdna.cc
++++ b/source/blender/makesdna/intern/makesdna.cc
+@@ -1035,6 +1035,52 @@ static bool check_field_alignment(int firststruct,
+   return result;
+ }
+ 
++static int align_up_for_sdna(const int value, const int alignment)
++{
++  BLI_assert(alignment > 0);
++  return (value + alignment - 1) & ~(alignment - 1);
++}
++
++static void align_emscripten_field_offsets(const int firststruct,
++                                           const int type,
++                                           const char *name,
++                                           int *size_native,
++                                           int *size_32)
++{
++#ifndef __EMSCRIPTEN__
++  UNUSED_VARS(firststruct, type, name, size_native, size_32);
++  return;
++#else
++  if (sizeof(void *) != 4) {
++    return;
++  }
++
++  int alignment = 1;
++  if (name[0] == '*' || name[1] == '*') {
++    alignment = 4;
++  }
++  else if (name[0] != '[' && types_size_native[type] != 0) {
++    if (type >= firststruct) {
++      alignment = types_align_32[type];
++    }
++    else if (types_size_native[type] > 4) {
++      alignment = 8;
++    }
++    else if (types_size_native[type] > 3) {
++      alignment = 4;
++    }
++    else if (types_size_native[type] == 2) {
++      alignment = 2;
++    }
++  }
++
++  if (alignment > 1) {
++    *size_native = align_up_for_sdna(*size_native, alignment);
++    *size_32 = align_up_for_sdna(*size_32, alignment);
++  }
++#endif
++}
++
+ static int calculate_struct_sizes(int firststruct, FILE *file_verify, const char *base_directory)
+ {
+   bool dna_error = false;
+@@ -1086,6 +1132,8 @@ static int calculate_struct_sizes(int firststruct, FILE *file_verify, const char
+           const char *cp = members[sp[1]];
+           int namelen = int(strlen(cp));
+ 
++          align_emscripten_field_offsets(firststruct, type, cp, &size_native, &size_32);
++
+           /* Write size verification to file. */
+           {
+             /* Normally 'alloca' would be used here, however we can't in a loop.
+@@ -1227,6 +1275,12 @@ static int calculate_struct_sizes(int firststruct, FILE *file_verify, const char
+           unknown++;
+         }
+         else {
++#ifdef __EMSCRIPTEN__
++          if (sizeof(void *) == 4) {
++            size_native = align_up_for_sdna(size_native, max_align_32);
++            size_32 = align_up_for_sdna(size_32, max_align_32);
++          }
++#endif
+           types_size_native[struct_type_index] = size_native;
+           types_size_32[struct_type_index] = size_32;
+           types_size_64[struct_type_index] = size_64;

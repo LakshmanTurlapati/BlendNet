@@ -13,9 +13,10 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      # Blender source -- mounted read-only to prevent accidental modification
+      # Blender source -- writable so the build script can apply version-controlled
+      # compatibility patches from ./patches before configuring the WASM build.
       # Path must match what build scripts expect: ${PROJECT_ROOT}/Blender Mirror
-      - "./Blender Mirror:/src/Blender Mirror:ro"
+      - "./Blender Mirror:/src/Blender Mirror"
       # Native host tools build output (Stage 1)
       - ./build-native:/src/build-native
       # WASM build output (Stage 3)
@@ -25,6 +26,7 @@ services:
       # Mount project scripts and cmake for live editing during iterative fixes
       - ./scripts:/src/scripts
       - ./cmake:/src/cmake
+      - ./patches:/src/patches
       - ./source:/src/source
     environment:
       EMSDK: /emsdk

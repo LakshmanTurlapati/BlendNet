@@ -1,0 +1,16 @@
+diff --git a/source/blender/blenlib/BLI_resource_scope.hh b/source/blender/blenlib/BLI_resource_scope.hh
+index 4bb472dea20..66c7d60331e 100644
+--- a/source/blender/blenlib/BLI_resource_scope.hh
++++ b/source/blender/blenlib/BLI_resource_scope.hh
+@@ -140,8 +140,9 @@ class ResourceScope : NonMovable {
+ /* This tests the expected size of #ResourceScope. It's currently easy to break by e.g. inheriting
+  * from #NonCopyable. That happens because then there would be two #NonCopyable types at the same
+  * address which is not allowed. The proper solution is probably to change how NonCopyable and
+- * NonMovable are used overall. */
+-static_assert(sizeof(ResourceScope) == 16);
++ * NonMovable are used overall. The concrete size depends on pointer width: 16 bytes on 64-bit
++ * targets and 8 bytes on wasm32/other 32-bit targets. */
++static_assert(sizeof(ResourceScope) == sizeof(void *) * 2);
+ 
+ /* -------------------------------------------------------------------- */
+ /** \name #ResourceScope Inline Methods

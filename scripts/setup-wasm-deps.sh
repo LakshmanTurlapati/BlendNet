@@ -5,9 +5,37 @@
 # Install all Blender WASM dependencies into Emscripten sysroot.
 # Run inside Docker container: docker compose run --rm blender-wasm-build bash scripts/setup-wasm-deps.sh
 
-set -e
+set -euo pipefail
 SYSROOT=/emsdk/upstream/emscripten/cache/sysroot
-JOBS=$(nproc)
+
+detect_jobs() {
+  nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4
+}
+
+JOBS="$(detect_jobs)"
+
+download_github_tarball() {
+  local url="${1:?missing url}"
+  local extracted_glob="${2:?missing extracted glob}"
+  local target_dir="${3:?missing target dir}"
+  local archive_path="/tmp/${target_dir}.tar.gz"
+
+  rm -rf "/tmp/${target_dir}"
+  find /tmp -maxdepth 1 -type d -name "${extracted_glob}" -exec rm -rf {} + 2>/dev/null || true
+
+  wget -qO "${archive_path}" "${url}"
+  tar xzf "${archive_path}" -C /tmp
+
+  local extracted_dir
+  extracted_dir="$(find /tmp -maxdepth 1 -type d -name "${extracted_glob}" | head -1)"
+  if [ -z "${extracted_dir}" ]; then
+    echo "ERROR: Failed to extract ${archive_path}" >&2
+    exit 1
+  fi
+
+  mv "${extracted_dir}" "/tmp/${target_dir}"
+  rm -f "${archive_path}"
+}
 
 echo "=== Installing system packages ==="
 apt-get update -qq
@@ -17,18 +45,16 @@ echo "=== Step 1: Emscripten ports (JPEG, PNG, ZLIB) ==="
 embuilder build libjpeg libpng zlib 2>&1 | tail -5
 
 echo "=== Step 2: Brotli ==="
-cd /tmp && rm -rf brotli
-git clone --depth 1 https://github.com/google/brotli.git 2>&1 | tail -1
-cd brotli && mkdir build-em && cd build-em
+download_github_tarball "https://github.com/google/brotli/archive/refs/tags/v1.1.0.tar.gz" "brotli-*" "brotli"
+cd /tmp/brotli && mkdir build-em && cd build-em
 emcmake cmake .. -DCMAKE_INSTALL_PREFIX=$SYSROOT -DCMAKE_BUILD_TYPE=Release -DBROTLI_DISABLE_TESTS=ON 2>&1 | tail -3
 cmake --build . -j$JOBS 2>&1 | tail -3
 cmake --install . 2>&1 | tail -3
 echo "Brotli: OK"
 
 echo "=== Step 3: Zstd ==="
-cd /tmp && rm -rf zstd
-git clone --depth 1 --branch v1.5.6 https://github.com/facebook/zstd.git 2>&1 | tail -1
-cd zstd/build/cmake && mkdir -p build && cd build
+download_github_tarball "https://github.com/facebook/zstd/archive/refs/tags/v1.5.6.tar.gz" "zstd-*" "zstd"
+cd /tmp/zstd/build/cmake && mkdir -p build && cd build
 emcmake cmake .. -DCMAKE_INSTALL_PREFIX=$SYSROOT -DCMAKE_BUILD_TYPE=Release \
   -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_TESTS=OFF -DZSTD_BUILD_SHARED=OFF -DZSTD_BUILD_STATIC=ON 2>&1 | tail -3
 cmake --build . -j$JOBS 2>&1 | tail -3
@@ -36,9 +62,8 @@ cmake --install . 2>&1 | tail -3
 echo "Zstd: OK"
 
 echo "=== Step 4: Freetype (with Brotli + zlib + png) ==="
-cd /tmp && rm -rf freetype
-git clone --depth 1 --branch VER-2-13-3 https://github.com/freetype/freetype.git 2>&1 | tail -1
-cd freetype && mkdir build-em && cd build-em
+download_github_tarball "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz" "freetype-*" "freetype"
+cd /tmp/freetype && mkdir build-em && cd build-em
 emcmake cmake .. \
   -DCMAKE_INSTALL_PREFIX=$SYSROOT \
   -DCMAKE_BUILD_TYPE=Release \
@@ -60,8 +85,7 @@ cmake --install . 2>&1 | tail -5
 echo "Freetype: OK"
 
 echo "=== Step 5: fmt (header-only) ==="
-cd /tmp && rm -rf fmt
-git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git 2>&1 | tail -1
+download_github_tarball "https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz" "fmt-*" "fmt"
 cp -r /tmp/fmt/include/fmt $SYSROOT/include/
 mkdir -p $SYSROOT/lib/cmake/fmt
 cat > $SYSROOT/lib/cmake/fmt/fmt-config.cmake << 'EOF'

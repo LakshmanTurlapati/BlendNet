@@ -1,0 +1,16 @@
+diff --git a/source/blender/blenlib/intern/storage.cc b/source/blender/blenlib/intern/storage.cc
+--- a/source/blender/blenlib/intern/storage.cc
++++ b/source/blender/blenlib/intern/storage.cc
+@@ -122,7 +122,11 @@
+ 
+ double BLI_dir_free_space(const char *dir)
+ {
+-#ifdef WIN32
++#ifdef __EMSCRIPTEN__
++  UNUSED_VARS(dir);
++  /* Emscripten's virtual filesystem does not provide a meaningful statfs result. */
++  return -1;
++#elif defined(WIN32)
+   DWORD sectorspc, bytesps, freec, clusters;
+   char tmp[4];
+ 

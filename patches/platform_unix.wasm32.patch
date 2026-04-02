@@ -1,0 +1,37 @@
+diff --git a/build_files/cmake/platform/platform_unix.cmake b/build_files/cmake/platform/platform_unix.cmake
+--- a/build_files/cmake/platform/platform_unix.cmake
++++ b/build_files/cmake/platform/platform_unix.cmake
+@@ -616,8 +616,10 @@ add_bundled_libraries(hiprt/lib)
+ # OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
+ if(HAIKU)
+   list(APPEND PLATFORM_LINKLIBS -lnetwork)
++elseif(EMSCRIPTEN)
++  # Emscripten provides libc/libm itself and does not ship libutil.
+ else()
+   list(APPEND PLATFORM_LINKLIBS -lutil -lc -lm)
+ endif()
+ 
+ find_package(Threads REQUIRED)
+@@ -1018,14 +1020,19 @@ unset(_IS_LINKER_DEFAULT)
+ # Avoid conflicts with Mesa llvmpipe, Luxrender, and other plug-ins that may
+ # use the same libraries as Blender with a different version or build options.
+-set(PLATFORM_SYMBOLS_MAP ${CMAKE_SOURCE_DIR}/source/creator/symbols_unix.map)
+-set(PLATFORM_LINKFLAGS_SYMBOL_HIDING "-Wl,--version-script='${PLATFORM_SYMBOLS_MAP}'")
++if(EMSCRIPTEN)
++  unset(PLATFORM_SYMBOLS_MAP)
++  unset(PLATFORM_LINKFLAGS_SYMBOL_HIDING)
++else()
++  set(PLATFORM_SYMBOLS_MAP ${CMAKE_SOURCE_DIR}/source/creator/symbols_unix.map)
++  set(PLATFORM_LINKFLAGS_SYMBOL_HIDING "-Wl,--version-script='${PLATFORM_SYMBOLS_MAP}'")
++endif()
+ 
+ # We do not ensure transitive dependencies of dynamic libraries are available at
+ # link time. This allows that for classic ld, which is more strict than gold, lld
+ # or mold. The ideal solution would be to switch all dependencies to CMake configs
+ # that fully specify transitive dependencies.
+-if(NOT WITH_PYTHON_MODULE)
++if(NOT WITH_PYTHON_MODULE AND NOT EMSCRIPTEN)
+   set(PLATFORM_LINKFLAGS
+     "${PLATFORM_LINKFLAGS} -Wl,--allow-shlib-undefined -Wl,--unresolved-symbols=ignore-in-shared-libs"
+   )
+ endif()
