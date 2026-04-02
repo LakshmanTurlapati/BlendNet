@@ -77,8 +77,7 @@ function main() {
   }, 30000);
 
   try {
-    var createModule = require(GLUE_CODE_PATH);
-
+    var ready = false;
     var moduleConfig = {
       noInitialRun: true,
       print: function(text) {
@@ -88,15 +87,26 @@ function main() {
         console.error("[wasm:err] " + text);
       },
       onRuntimeInitialized: function() {
+        if (ready) {
+          return;
+        }
+        ready = true;
         clearTimeout(timeout);
-        onReady(this);
+        onReady(global.Module || this);
       }
     };
+
+    global.Module = Object.assign({}, global.Module || {}, moduleConfig);
+    var createModule = require(GLUE_CODE_PATH);
 
     if (typeof createModule === "function") {
       var instance = createModule(moduleConfig);
       if (instance && typeof instance.then === "function") {
         instance.then(function(mod) {
+          if (ready) {
+            return;
+          }
+          ready = true;
           clearTimeout(timeout);
           onReady(mod);
         }).catch(function(err) {
@@ -105,6 +115,13 @@ function main() {
           process.exit(1);
         });
       }
+    } else if (createModule && createModule.calledRun) {
+      if (ready) {
+        return;
+      }
+      ready = true;
+      clearTimeout(timeout);
+      onReady(createModule);
     }
   } catch (err) {
     clearTimeout(timeout);

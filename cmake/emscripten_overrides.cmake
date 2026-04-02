@@ -54,14 +54,31 @@ set(WASM_LINK_FLAGS
   -fwasm-exceptions
 
   # Environment and runtime
-  # Include 'node' so host tools (makesdna, makesrna, datatoc, shader_tool) can
-  # run via Node.js during the build. NODERAWFS allows filesystem access from node.
-  # Browsers ignore the node environment code.
+  # Keep Node.js support for local validation scripts, but do not enable
+  # NODERAWFS in the final browser artifact. It pulls in unconditional
+  # node:* requires that break web execution.
   -sENVIRONMENT=web,worker,node
-  -sNODERAWFS=1
   -sEXPORTED_FUNCTIONS=_main,_wasm_init,_wasm_load_blend,_wasm_query_scene,_wasm_memory_usage
   -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,MEMFS
 )
+
+set(BLENDER_WEB_WASM_TRAP_DEBUG "$ENV{WASM_DEBUG_TRAP}")
+if(BLENDER_WEB_WASM_TRAP_DEBUG STREQUAL "")
+  set(BLENDER_WEB_WASM_TRAP_DEBUG "0")
+endif()
+set(BLENDER_WEB_WASM_TRAP_DEBUG
+    "${BLENDER_WEB_WASM_TRAP_DEBUG}"
+    CACHE STRING "Enable extra runtime diagnostics for WASM blend-loader trap reproduction"
+    FORCE)
+
+if(BLENDER_WEB_WASM_TRAP_DEBUG)
+  list(APPEND WASM_LINK_FLAGS
+    -sASSERTIONS=2
+    -sSAFE_HEAP=1
+    -sSTACK_OVERFLOW_CHECK=2
+    --profiling-funcs
+  )
+endif()
 
 # =============================================================================
 # Propagate Flags Through The Initial Cache
@@ -97,19 +114,26 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     -gsource-map
   )
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-  # Release: maximum optimization, closure compiler for JS minification
+  # Release: maximum optimization, closure compiler for JS minification.
+  # Debug-trap mode keeps closure off so stack traces and helper output stay readable.
+  set(WASM_RELEASE_LINK_FLAGS
+    -O3
+  )
+  if(NOT BLENDER_WEB_WASM_TRAP_DEBUG)
+    list(APPEND WASM_RELEASE_LINK_FLAGS --closure 1)
+  endif()
+  string(REPLACE ";" " " WASM_RELEASE_LINK_FLAGS_STR "${WASM_RELEASE_LINK_FLAGS}")
+
   set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "Blender Web WASM release C flags" FORCE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "Blender Web WASM release C++ flags" FORCE)
-  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release executable link flags" FORCE)
-  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release shared link flags" FORCE)
-  set(CMAKE_MODULE_LINKER_FLAGS_RELEASE "-O3 --closure 1" CACHE STRING "Blender Web WASM release module link flags" FORCE)
+  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${WASM_RELEASE_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM release executable link flags" FORCE)
+  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${WASM_RELEASE_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM release shared link flags" FORCE)
+  set(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${WASM_RELEASE_LINK_FLAGS_STR}" CACHE STRING "Blender Web WASM release module link flags" FORCE)
   add_compile_options(-O3)
-  add_link_options(
-    -O3
-    --closure 1
-  )
+  add_link_options(${WASM_RELEASE_LINK_FLAGS})
 endif()
 
 message(STATUS "[emscripten_overrides] WASM compile flags: ${WASM_COMPILE_FLAGS}")
 message(STATUS "[emscripten_overrides] WASM link flags: ${WASM_LINK_FLAGS}")
 message(STATUS "[emscripten_overrides] Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "[emscripten_overrides] Trap debug mode: ${BLENDER_WEB_WASM_TRAP_DEBUG}")

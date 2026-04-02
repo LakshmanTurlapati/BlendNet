@@ -31,6 +31,18 @@ detect_jobs() {
     nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4
 }
 
+sync_wasm_artifact() {
+    local src="${1:?missing source}"
+    local dst="${2:?missing destination}"
+
+    if [ ! -f "${src}" ]; then
+        return 1
+    fi
+
+    cp "${src}" "${dst}"
+    return 0
+}
+
 echo "[build-wasm] Stage 3: Cross-compiling Blender to WebAssembly"
 echo "[build-wasm] Blender source: ${BLENDER_SRC}"
 echo "[build-wasm] Build directory: ${BUILD_DIR}"
@@ -143,6 +155,9 @@ BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
 
 echo "[build-wasm] Compilation complete. Running post-build steps..."
 echo "[build-wasm] Total compilation time: ${BUILD_DURATION} seconds"
+
+sync_wasm_artifact "${BUILD_DIR}/bin/blender.wasm" "${BUILD_DIR}/blender.wasm" || true
+sync_wasm_artifact "${BUILD_DIR}/bin/blender.js" "${BUILD_DIR}/blender.js" || true
 
 # Report output file sizes if present
 if ls "${BUILD_DIR}"/*.wasm 1>/dev/null 2>&1; then

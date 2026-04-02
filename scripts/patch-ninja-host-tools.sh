@@ -23,8 +23,11 @@ PROJECT_ROOT="$(cd "${BUILD_DIR}/.." && pwd)"
 NINJA_FILE="${BUILD_DIR}/build.ninja"
 NINJA_BACKUP="${NINJA_FILE}.orig"
 WASM_GENERATOR_WRAPPER="${PROJECT_ROOT}/scripts/run-wasm-generator.sh"
+FREETYPE_PORT_LIB="/emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libfreetype.a"
+FREETYPE_PORT_WASM_SJLJ_LIB="/emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libfreetype-legacysjlj.a"
 WASM_COMPILE_PATCH_FLAGS="-pthread -msimd128 -mrelaxed-simd -fwasm-exceptions -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DFE_DIVBYZERO=0 -DFE_INVALID=0 -O3"
-WASM_LINK_PATCH_FLAGS="-pthread -sPROXY_TO_PTHREAD -sALLOW_BLOCKING_ON_MAIN_THREAD=0 -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency -sPTHREAD_POOL_SIZE_STRICT=0 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sMALLOC=mimalloc -sSTACK_SIZE=2MB -fwasm-exceptions -sENVIRONMENT=web,worker,node -sNODERAWFS=1 -sEXPORTED_FUNCTIONS=_main,_wasm_init,_wasm_load_blend,_wasm_query_scene,_wasm_memory_usage -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,MEMFS -O3 --closure 1"
+WASM_LINK_PATCH_FLAGS="-pthread -sPROXY_TO_PTHREAD -sALLOW_BLOCKING_ON_MAIN_THREAD=0 -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency -sPTHREAD_POOL_SIZE_STRICT=0 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sMALLOC=mimalloc -sSTACK_SIZE=2MB -fwasm-exceptions -sENVIRONMENT=web,worker,node -sEXPORTED_FUNCTIONS=_main,_wasm_init,_wasm_load_blend,_wasm_query_scene,_wasm_memory_usage -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,MEMFS -O3 --closure 1"
+WASM_GENERATOR_NODEFS_FLAG="-sNODERAWFS=1"
 
 sed_in_place() {
     local expr="${1:?missing sed expression}"
@@ -120,6 +123,16 @@ else
     sed_in_place "s|^  LINK_FLAGS = \\(.*\\)$|  LINK_FLAGS = \\1 ${WASM_LINK_PATCH_FLAGS}|g" "${NINJA_FILE}"
 fi
 
+# The default Emscripten freetype port archive is built with the incompatible
+# JS-based longjmp mode. Our Wasm-exception build needs the legacy-SjLj
+# compatible variant instead.
+if grep -q "${FREETYPE_PORT_LIB}" "${NINJA_FILE}"; then
+    sed_in_place "s|${FREETYPE_PORT_LIB}|${FREETYPE_PORT_WASM_SJLJ_LIB}|g" "${NINJA_FILE}"
+    echo "[patch-ninja]   freetype archive rewritten to legacy-SjLj variant"
+else
+    echo "[patch-ninja]   freetype archive already rewritten or not present"
+fi
+
 # === Step 2: Validate WASM generator wiring ===
 echo "[patch-ninja] Step 2: Validating WASM generator wiring..."
 for tool in makesdna makesrna; do
@@ -132,6 +145,12 @@ for tool in makesdna makesrna; do
     TOOL_LINK_FLAGS_LINE=$((TOOL_BUILD_LINE + 2))
     sed_in_place "${TOOL_LINK_FLAGS_LINE}s| -sEXPORTED_FUNCTIONS=[^ ]*||g" "${NINJA_FILE}"
     sed_in_place "${TOOL_LINK_FLAGS_LINE}s| -sEXPORTED_RUNTIME_METHODS=[^ ]*||g" "${NINJA_FILE}"
+    if sed -n "${TOOL_LINK_FLAGS_LINE}p" "${NINJA_FILE}" | grep -q -- "${WASM_GENERATOR_NODEFS_FLAG}"; then
+        echo "[patch-ninja]   ${tool} link flags already include ${WASM_GENERATOR_NODEFS_FLAG}"
+    else
+        sed_in_place "${TOOL_LINK_FLAGS_LINE}s|$| ${WASM_GENERATOR_NODEFS_FLAG}|g" "${NINJA_FILE}"
+        echo "[patch-ninja]   ${tool} link flags restored ${WASM_GENERATOR_NODEFS_FLAG} for Node filesystem access"
+    fi
     echo "[patch-ninja]   ${tool} link flags stripped of final runtime exports"
 done
 
@@ -174,6 +193,18 @@ else
     echo "[patch-ninja] PASS: makesrna link flags only contain auxiliary runtime settings"
 fi
 
+if grep -A 2 "^build bin/makesdna\\.js:" "${NINJA_FILE}" | grep -q -- "${WASM_GENERATOR_NODEFS_FLAG}"; then
+    echo "[patch-ninja] PASS: makesdna link flags include ${WASM_GENERATOR_NODEFS_FLAG}"
+else
+    echo "[patch-ninja] WARNING: makesdna link flags are missing ${WASM_GENERATOR_NODEFS_FLAG}"
+fi
+
+if grep -A 2 "^build bin/makesrna\\.js:" "${NINJA_FILE}" | grep -q -- "${WASM_GENERATOR_NODEFS_FLAG}"; then
+    echo "[patch-ninja] PASS: makesrna link flags include ${WASM_GENERATOR_NODEFS_FLAG}"
+else
+    echo "[patch-ninja] WARNING: makesrna link flags are missing ${WASM_GENERATOR_NODEFS_FLAG}"
+fi
+
 if grep -q "FLAGS = .*FE_DIVBYZERO=0" "${NINJA_FILE}" && \
     grep -q "FLAGS = .*msimd128" "${NINJA_FILE}"; then
     echo "[patch-ninja] PASS: compile flags include Emscripten overrides"
@@ -186,6 +217,12 @@ if grep -q "LINK_FLAGS = .*PTHREAD_POOL_SIZE" "${NINJA_FILE}" && \
     echo "[patch-ninja] PASS: link flags include Emscripten runtime settings"
 else
     echo "[patch-ninja] WARNING: link flag injection missing expected overrides"
+fi
+
+if grep -q "${FREETYPE_PORT_WASM_SJLJ_LIB}" "${NINJA_FILE}"; then
+    echo "[patch-ninja] PASS: freetype archive points to legacy-SjLj variant"
+else
+    echo "[patch-ninja] WARNING: freetype archive still points to the default port library"
 fi
 
 echo "[patch-ninja] Patching complete."

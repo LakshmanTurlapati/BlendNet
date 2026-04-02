@@ -23,6 +23,8 @@ BUILD_DIR="${PROJECT_ROOT}/build-wasm"
 NATIVE_DIR="${PROJECT_ROOT}/build-native"
 BLENDER_SRC="${PROJECT_ROOT}/Blender Mirror"
 CMAKE_DIR="${PROJECT_ROOT}/cmake"
+WASM_BUILD_MODE="${WASM_BUILD_MODE:-Release}"
+WASM_DEBUG_TRAP="${WASM_DEBUG_TRAP:-0}"
 
 BUILD_START_TIME=$(date +%s)
 
@@ -32,6 +34,28 @@ detect_jobs() {
 
 log() {
     echo "[$(date -u '+%H:%M:%S')] $*"
+}
+
+format_mb() {
+    local bytes="${1:?missing byte count}"
+    awk -v bytes="${bytes}" 'BEGIN { printf "%.2f", bytes / 1048576 }'
+}
+
+format_minutes() {
+    local seconds="${1:?missing second count}"
+    awk -v seconds="${seconds}" 'BEGIN { printf "%.1f", seconds / 60 }'
+}
+
+sync_wasm_artifact() {
+    local src="${1:?missing source}"
+    local dst="${2:?missing destination}"
+
+    if [ ! -f "${src}" ]; then
+        return 1
+    fi
+
+    cp "${src}" "${dst}"
+    return 0
 }
 
 fail() {
@@ -68,6 +92,8 @@ log "=========================================="
 log "Blender source: ${BLENDER_SRC}"
 log "Build dir (WASM): ${BUILD_DIR}"
 log "Build dir (native): ${NATIVE_DIR}"
+log "Build mode: ${WASM_BUILD_MODE}"
+log "Trap diagnostics: ${WASM_DEBUG_TRAP}"
 
 # ==========================================================================
 # Stage 1: Install dependencies
@@ -223,6 +249,15 @@ needs_reconfigure=0
 if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]; then
     needs_reconfigure=1
 else
+    if ! grep -q "^CMAKE_BUILD_TYPE:STRING=${WASM_BUILD_MODE}$" "${BUILD_DIR}/CMakeCache.txt"; then
+        needs_reconfigure=1
+    fi
+
+    if [ "${needs_reconfigure}" -eq 0 ] && \
+        ! grep -q "^BLENDER_WEB_WASM_TRAP_DEBUG:STRING=${WASM_DEBUG_TRAP}$" "${BUILD_DIR}/CMakeCache.txt"; then
+        needs_reconfigure=1
+    fi
+
     for input in \
         "${CMAKE_DIR}/emscripten_overrides.cmake" \
         "${CMAKE_DIR}/wasm_sources.cmake" \
@@ -252,7 +287,7 @@ if [ "${needs_reconfigure}" -eq 1 ]; then
     log "Running emcmake cmake..."
     emcmake cmake "${BLENDER_SRC}" \
         -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_BUILD_TYPE="${WASM_BUILD_MODE}" \
         -C "${CMAKE_DIR}/emscripten_overrides.cmake" \
         -C "${CMAKE_DIR}/wasm_sources.cmake" \
         -DCMAKE_MODULE_PATH="${CMAKE_DIR}/fake_modules" \
@@ -372,9 +407,12 @@ log "=== Stage 7: Post-Build ==="
 BUILD_END_TIME=$(date +%s)
 BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
 
+sync_wasm_artifact "${BUILD_DIR}/bin/blender.wasm" "${BUILD_DIR}/blender.wasm" || true
+sync_wasm_artifact "${BUILD_DIR}/bin/blender.js" "${BUILD_DIR}/blender.js" || true
+
 if [ -f "${BUILD_DIR}/blender.wasm" ]; then
     WASM_SIZE=$(stat -c%s "${BUILD_DIR}/blender.wasm" 2>/dev/null || stat -f%z "${BUILD_DIR}/blender.wasm" 2>/dev/null)
-    WASM_MB=$(echo "scale=2; ${WASM_SIZE}/1048576" | bc)
+    WASM_MB="$(format_mb "${WASM_SIZE}")"
     log "blender.wasm: ${WASM_SIZE} bytes (${WASM_MB} MB)"
 
     # Brotli compression
@@ -382,10 +420,10 @@ if [ -f "${BUILD_DIR}/blender.wasm" ]; then
         log "Compressing with Brotli (--best)..."
         brotli --best --force "${BUILD_DIR}/blender.wasm" -o "${BUILD_DIR}/blender.wasm.br"
         BR_SIZE=$(stat -c%s "${BUILD_DIR}/blender.wasm.br" 2>/dev/null || stat -f%z "${BUILD_DIR}/blender.wasm.br" 2>/dev/null)
-        BR_MB=$(echo "scale=2; ${BR_SIZE}/1048576" | bc)
+        BR_MB="$(format_mb "${BR_SIZE}")"
         log "blender.wasm.br: ${BR_SIZE} bytes (${BR_MB} MB)"
 
-        BR_INT_MB=$(echo "scale=0; ${BR_SIZE}/1048576" | bc)
+        BR_INT_MB=$((BR_SIZE / 1048576))
         if [ "${BR_INT_MB}" -gt 30 ]; then
             log "WARNING: Compressed size exceeds 30MB target (${BR_MB} MB)"
         else
@@ -404,7 +442,7 @@ if [ -f "${BUILD_DIR}/blender.wasm" ]; then
     log "=========================================="
     log "BUILD SUCCEEDED"
     log "=========================================="
-    log "Total build time: ${BUILD_DURATION} seconds ($(echo "scale=1; ${BUILD_DURATION}/60" | bc) min)"
+    log "Total build time: ${BUILD_DURATION} seconds ($(format_minutes "${BUILD_DURATION}") min)"
     log "Artifacts:"
     ls -lh "${BUILD_DIR}/blender.wasm" "${BUILD_DIR}/blender.wasm.br" "${BUILD_DIR}/blender.js" 2>/dev/null
 else

@@ -74,5 +74,10 @@ emcc "${PORTS_TEST_DIR}/test.c" \
 
 rm -rf "${PORTS_TEST_DIR}"
 
+# When the main build uses `-fwasm-exceptions`, Emscripten expects the
+# legacy-SjLj-compatible freetype variant at link time.
+echo "[wasm-deps] Building freetype-legacysjlj variant for Wasm exceptions..."
+embuilder build freetype-legacysjlj >/dev/null
+
 echo "[wasm-deps] All required Emscripten ports verified successfully."
 echo "[wasm-deps] Stage 2 complete."
