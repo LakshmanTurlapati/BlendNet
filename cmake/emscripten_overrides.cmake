@@ -50,7 +50,11 @@ set(WASM_LINK_FLAGS
   -fwasm-exceptions
 
   # Environment and runtime
-  -sENVIRONMENT=web,worker
+  # Include 'node' so host tools (makesdna, makesrna, datatoc, shader_tool) can
+  # run via Node.js during the build. NODERAWFS allows filesystem access from node.
+  # Browsers ignore the node environment code.
+  -sENVIRONMENT=web,worker,node
+  -sNODERAWFS=1
   -sEXPORTED_FUNCTIONS=_main,_wasm_init,_wasm_load_blend,_wasm_query_scene,_wasm_memory_usage
   -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,MEMFS
 )

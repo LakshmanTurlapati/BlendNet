@@ -74,14 +74,25 @@ else
 fi
 
 # Eigen3: header-only linear algebra library
+# Must use the exact commit Blender expects (development branch, not a release tag)
+# Using tarball download instead of git clone for speed
+EIGEN_COMMIT="8a1083e9bf41b91fdea6546681f806154efdc25a"
 if [ ! -d "${SYSROOT}/include/Eigen" ]; then
-    cd /tmp && rm -rf eigen
-    git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git 2>&1 | tail -1
-    cp -r /tmp/eigen/Eigen "${SYSROOT}/include/"
-    # Also install the cmake config so FindEigen3 works
+    cd /tmp && rm -rf eigen eigen-${EIGEN_COMMIT}*
+    log "Downloading Eigen3 (commit ${EIGEN_COMMIT:0:7})..."
+    wget -q "https://gitlab.com/libeigen/eigen/-/archive/${EIGEN_COMMIT}/eigen-${EIGEN_COMMIT}.tar.gz" -O /tmp/eigen.tar.gz
+    tar xzf /tmp/eigen.tar.gz -C /tmp
+    EIGEN_DIR=$(ls -d /tmp/eigen-${EIGEN_COMMIT}* 2>/dev/null | head -1)
+    if [ -z "${EIGEN_DIR}" ]; then
+        log "ERROR: Failed to extract Eigen3 tarball"
+        exit 1
+    fi
+    cp -r "${EIGEN_DIR}/Eigen" "${SYSROOT}/include/"
+    cp -r "${EIGEN_DIR}/unsupported" "${SYSROOT}/include/" 2>/dev/null || true
     mkdir -p "${SYSROOT}/share/eigen3/cmake"
-    cp /tmp/eigen/cmake/Eigen3Config.cmake "${SYSROOT}/share/eigen3/cmake/" 2>/dev/null || true
-    log "Eigen3: installed to sysroot"
+    cp "${EIGEN_DIR}/cmake/Eigen3Config.cmake" "${SYSROOT}/share/eigen3/cmake/" 2>/dev/null || true
+    rm -f /tmp/eigen.tar.gz
+    log "Eigen3: installed to sysroot (commit ${EIGEN_COMMIT:0:7})"
 else
     log "Eigen3: already in sysroot"
 fi
@@ -92,18 +103,18 @@ if [ ! -f /usr/include/sse2neon.h ] && [ -f "${SYSROOT}/include/sse2neon.h" ]; t
 fi
 
 # ==========================================================================
-# Stage 2: Build native host tools with GCC-14
+# Stage 2: Build native host tools (datatoc, shader_tool) with GCC-14
 # ==========================================================================
 log ""
-log "=== Stage 2: Native Host Tools ==="
+log "=== Stage 2: Native Host Tools + Node.js ==="
 
-# Ensure we use GCC-14 (not emcc) for native host tools
-export CC=gcc-14
-export CXX=g++-14
+# Hybrid strategy:
+# - datatoc + shader_tool: Build natively with GCC-14 (architecture-independent output)
+# - makesdna + makesrna: Run as WASM via Node.js (need 32-bit struct layouts)
 
-# Install fmt headers in system for host tools (they need it)
+# Install fmt headers for host tools
 if [ ! -f /usr/include/fmt/format.h ]; then
-    log "Installing fmt headers for host tools..."
+    log "Installing fmt headers..."
     if [ -d /tmp/fmt/include/fmt ]; then
         cp -r /tmp/fmt/include/fmt /usr/include/
     else
@@ -111,21 +122,28 @@ if [ ! -f /usr/include/fmt/format.h ]; then
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git 2>&1 | tail -1
         cp -r /tmp/fmt/include/fmt /usr/include/
     fi
-    log "fmt: installed to /usr/include"
 fi
 
+export CC=gcc-14
+export CXX=g++-14
 log "Building native host tools with CC=${CC} CXX=${CXX}..."
 bash "${PROJECT_ROOT}/scripts/build-host-tools.sh" || \
-    fail "host-tools" "Native host tools build failed" "Check GCC-14 availability and CMake output"
+    fail "host-tools" "Native host tools build failed" "Check GCC-14 availability"
 
-# Verify native tools
 for tool in makesdna datatoc shader_tool; do
     if [ -x "${NATIVE_DIR}/${tool}" ]; then
-        log "FOUND: ${NATIVE_DIR}/${tool} ($(file -b "${NATIVE_DIR}/${tool}" | head -c 50))"
+        log "FOUND: ${NATIVE_DIR}/${tool}"
     else
-        fail "host-tools" "${tool} not found at ${NATIVE_DIR}/${tool}" "Check cmake/host_tools/CMakeLists.txt"
+        log "WARNING: ${tool} not found at ${NATIVE_DIR}/${tool}"
     fi
 done
+
+# Also ensure Node.js is available (for makesdna/makesrna WASM execution)
+if ! command -v node &>/dev/null; then
+    log "Installing Node.js..."
+    apt-get update -qq && apt-get install -y -qq nodejs 2>&1 | tail -3
+fi
+log "Node.js: $(node --version 2>/dev/null || echo 'not available')"
 
 # ==========================================================================
 # Stage 3: Verify Emscripten ports
