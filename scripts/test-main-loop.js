@@ -68,8 +68,7 @@ function main() {
   }, 50);
 
   try {
-    var createModule = require(GLUE_CODE_PATH);
-
+    var ready = false;
     var moduleConfig = {
       noInitialRun: false, // Allow main() to run to test PROXY_TO_PTHREAD
       print: function(text) {
@@ -79,6 +78,10 @@ function main() {
         console.error("[wasm:err] " + text);
       },
       onRuntimeInitialized: function() {
+        if (ready) {
+          return;
+        }
+        ready = true;
         var elapsed = Date.now() - startTime;
         initComplete = true;
         clearTimeout(timeout);
@@ -89,15 +92,19 @@ function main() {
         console.log("Main thread blocked: " + (mainThreadBlocked ? "YES" : "NO"));
         console.log("");
 
-        onReady(this, elapsed, mainThreadBlocked, eventLoopChecks);
+        onReady(global.Module || this, elapsed, mainThreadBlocked, eventLoopChecks);
       }
     };
+
+    global.Module = Object.assign({}, global.Module || {}, moduleConfig);
+    var createModule = require(GLUE_CODE_PATH);
 
     if (typeof createModule === "function") {
       var instance = createModule(moduleConfig);
       if (instance && typeof instance.then === "function") {
         instance.then(function(mod) {
-          if (!initComplete) {
+          if (!ready) {
+            ready = true;
             var elapsed = Date.now() - startTime;
             initComplete = true;
             clearTimeout(timeout);
@@ -116,6 +123,18 @@ function main() {
           process.exit(1);
         });
       }
+    } else if (createModule && createModule.calledRun && !ready) {
+      ready = true;
+      var elapsed = Date.now() - startTime;
+      initComplete = true;
+      clearTimeout(timeout);
+      clearInterval(eventLoopInterval);
+
+      console.log("WASM module loaded in " + elapsed + "ms");
+      console.log("Event loop checks: " + eventLoopChecks);
+      console.log("");
+
+      onReady(createModule, elapsed, mainThreadBlocked, eventLoopChecks);
     }
 
     // Verify event loop is still responsive after require() returns

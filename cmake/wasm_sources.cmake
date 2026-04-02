@@ -29,6 +29,8 @@ get_filename_component(BLENDER_WEB_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 set(WASM_ENTRY_POINT_SRC
   "${BLENDER_WEB_ROOT}/source/wasm_headless_main.cc"
+  CACHE FILEPATH "Custom headless WASM entry point source"
+  FORCE
 )
 
 # =============================================================================
@@ -45,28 +47,53 @@ set(WASM_ENTRY_POINT_SRC
 #   - guardedalloc: MEM_guardedalloc.h (memory tracking)
 #   - clog:       CLG_log.h (logging)
 
-set(WASM_BLENDER_INCLUDE_DIRS
+set(_WASM_BLENDER_INCLUDE_DIRS
   # Core kernel
-  "${BLENDER_SRC}/source/blender/blenkernel"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/blenkernel"
 
   # Utility library
-  "${BLENDER_SRC}/source/blender/blenlib"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/blenlib"
 
   # DNA type definitions (file format structs)
-  "${BLENDER_SRC}/source/blender/makesdna"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/makesdna"
 
   # RNA reflection/scripting interface
-  "${BLENDER_SRC}/source/blender/makesrna"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/makesrna"
 
   # Blend-file loader
-  "${BLENDER_SRC}/source/blender/blenloader"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/blenloader"
+
+  # Font system
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/blenfont"
+
+  # Depsgraph public headers
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/depsgraph"
+
+  # Editor public headers (datatoc font declarations)
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/editors/include"
 
   # Guarded memory allocator
-  "${BLENDER_SRC}/intern/guardedalloc"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/intern/guardedalloc"
+
+  # ImBuf
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/imbuf"
 
   # Logging
-  "${BLENDER_SRC}/intern/clog"
+  "${BLENDER_WEB_ROOT}/Blender Mirror/intern/clog"
+
+  # Sequencer public headers
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/sequencer"
+
+  # Window-manager internals used for the dummy runtime
+  "${BLENDER_WEB_ROOT}/Blender Mirror/source/blender/windowmanager"
 )
+
+set(WASM_BLENDER_INCLUDE_DIRS
+  "${_WASM_BLENDER_INCLUDE_DIRS}"
+  CACHE STRING "Blender include paths for the custom WASM entry point"
+  FORCE
+)
+unset(_WASM_BLENDER_INCLUDE_DIRS)
 
 message(STATUS "[wasm_sources] Custom entry point: ${WASM_ENTRY_POINT_SRC}")
 message(STATUS "[wasm_sources] Blender include dirs: ${WASM_BLENDER_INCLUDE_DIRS}")

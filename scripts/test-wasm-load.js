@@ -59,9 +59,8 @@ function main() {
 
   // Load the Emscripten glue code
   try {
-    var createModule = require(GLUE_CODE_PATH);
-
     // Emscripten modules may export a factory function or set global Module
+    var ready = false;
     var moduleConfig = {
       noInitialRun: true,
       print: function(text) {
@@ -71,16 +70,27 @@ function main() {
         console.error("[wasm:err] " + text);
       },
       onRuntimeInitialized: function() {
+        if (ready) {
+          return;
+        }
+        ready = true;
         clearTimeout(timeout);
-        onReady(this);
+        onReady(global.Module || this);
       }
     };
+
+    global.Module = Object.assign({}, global.Module || {}, moduleConfig);
+    var createModule = require(GLUE_CODE_PATH);
 
     if (typeof createModule === "function") {
       var instance = createModule(moduleConfig);
       // Some Emscripten builds return a promise
       if (instance && typeof instance.then === "function") {
         instance.then(function(mod) {
+          if (ready) {
+            return;
+          }
+          ready = true;
           clearTimeout(timeout);
           onReady(mod);
         }).catch(function(err) {
@@ -89,11 +99,22 @@ function main() {
           process.exit(1);
         });
       }
+    } else if (createModule && createModule.calledRun) {
+      if (ready) {
+        return;
+      }
+      ready = true;
+      clearTimeout(timeout);
+      onReady(createModule);
     } else {
       // Module might already be initialized via global
-      if (typeof Module !== "undefined" && Module._wasm_init) {
+      if (typeof global.Module !== "undefined" && global.Module._wasm_init) {
+        if (ready) {
+          return;
+        }
+        ready = true;
         clearTimeout(timeout);
-        onReady(Module);
+        onReady(global.Module);
       }
     }
   } catch (err) {

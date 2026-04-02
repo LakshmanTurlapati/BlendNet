@@ -168,83 +168,19 @@
 
       var wasmPath = "../build-wasm/blender.js";
       var wasmBinaryPath = "../build-wasm/blender.wasm";
+      var moduleReady = false;
 
-      // Track WASM binary size via fetch (BUILD-07 validation)
-      fetch(wasmBinaryPath)
-        .then(function(response) {
-          if (!response.ok) {
-            throw new Error("HTTP " + response.status + " loading " + wasmBinaryPath);
-          }
-          var contentLength = response.headers.get("Content-Length");
-          if (contentLength) {
-            var sizeBytes = parseInt(contentLength, 10);
-            var sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
-            var under30MB = sizeBytes < 30 * 1024 * 1024;
-            addStatus(
-              "WASM Binary Size",
-              sizeMB + " MB" + (under30MB ? " (within 30MB target)" : " (EXCEEDS 30MB target)"),
-              under30MB ? "pass" : "warn"
-            );
-          }
-          return response.arrayBuffer();
-        })
-        .then(function(buffer) {
-          addStatus("WASM Binary Fetch", "OK (" + buffer.byteLength + " bytes)", "pass");
-          // Attempt streaming compilation via instantiateStreaming
-          if (typeof WebAssembly.instantiateStreaming === "function") {
-            return WebAssembly.instantiateStreaming(
-              fetch(wasmBinaryPath),
-              {}
-            ).then(function(result) {
-              addStatus("WASM Streaming Instantiation", "SUCCESS", "pass");
-              return result;
-            });
-          } else {
-            return WebAssembly.instantiate(buffer, {}).then(function(result) {
-              addStatus("WASM Instantiation", "SUCCESS (non-streaming fallback)", "warn");
-              return result;
-            });
-          }
-        })
-        .catch(function(err) {
-          addStatus(
-            "WASM Binary",
-            "NOT FOUND or FAILED: " + err.message,
-            "fail"
-          );
-          logError("WASM binary load error: " + err.message);
-          logError("Expected at: " + wasmBinaryPath);
-          logError("Run the WASM build first (scripts/build-wasm.sh)");
-        });
-
-      // -- Check 7: Load Emscripten glue code and call exported functions --
-      var glueScript = document.createElement("script");
-      glueScript.src = wasmPath;
-      glueScript.onerror = function() {
-        addStatus(
-          "Emscripten Glue",
-          "NOT FOUND at " + wasmPath,
-          "fail"
-        );
-        logError("Emscripten glue code not found at: " + wasmPath);
-        logError("Run the WASM build first (scripts/build-wasm.sh)");
-      };
-      glueScript.onload = function() {
-        addStatus("Emscripten Glue", "LOADED", "pass");
-
-        // Wait for Module to be ready
-        if (typeof Module !== "undefined" && Module.onRuntimeInitialized) {
-          var origCallback = Module.onRuntimeInitialized;
-          Module.onRuntimeInitialized = function() {
-            if (origCallback) origCallback();
-            onModuleReady();
-          };
-        } else if (typeof Module !== "undefined") {
-          Module.onRuntimeInitialized = onModuleReady;
-        }
-      };
+      function markModuleLoadingFailed(message) {
+        addStatus("WASM Module", "FAILED: " + message, "fail");
+        logError("WASM module error: " + message);
+      }
 
       function onModuleReady() {
+        if (moduleReady) {
+          return;
+        }
+        moduleReady = true;
+
         addStatus("WASM Runtime", "INITIALIZED", "pass");
 
         // Call wasm_init (BUILD-01/02 validation)
@@ -274,15 +210,19 @@
           logError("wasm_memory_usage error: " + e.message);
         }
 
-        // Report WASM heap size
+        // Report WASM heap size when exposed by the runtime.
         try {
-          var heapSize = Module.HEAP8.buffer.byteLength;
-          var heapMB = (heapSize / (1024 * 1024)).toFixed(2);
-          addStatus(
-            "WASM Heap Size",
-            heapMB + " MB (" + heapSize + " bytes)",
-            "info"
-          );
+          if (Module.HEAP8 && Module.HEAP8.buffer) {
+            var heapSize = Module.HEAP8.buffer.byteLength;
+            var heapMB = (heapSize / (1024 * 1024)).toFixed(2);
+            addStatus(
+              "WASM Heap Size",
+              heapMB + " MB (" + heapSize + " bytes)",
+              "info"
+            );
+          } else {
+            addStatus("WASM Heap Size", "Not exported by runtime", "warn");
+          }
         } catch (e) {
           addStatus("WASM Heap Size", "Could not read: " + e.message, "warn");
         }
@@ -297,6 +237,88 @@
           }
         }
       }
+
+      // Track WASM binary size via fetch (BUILD-07 validation)
+      fetch(wasmBinaryPath)
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error("HTTP " + response.status + " loading " + wasmBinaryPath);
+          }
+          var contentLength = response.headers.get("Content-Length");
+          if (contentLength) {
+            var sizeBytes = parseInt(contentLength, 10);
+            var sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
+            var under30MB = sizeBytes < 30 * 1024 * 1024;
+            addStatus(
+              "WASM Binary Size",
+              sizeMB + " MB" + (under30MB ? " (within 30MB target)" : " (EXCEEDS 30MB target)"),
+              under30MB ? "pass" : "warn"
+            );
+          }
+          return response.arrayBuffer();
+        })
+        .then(function(buffer) {
+          addStatus("WASM Binary Fetch", "OK (" + buffer.byteLength + " bytes)", "pass");
+          // Validate the binary at compile time only. Instantiation for a
+          // threaded Emscripten module must flow through the generated glue.
+          if (typeof WebAssembly.compileStreaming === "function") {
+            return WebAssembly.compileStreaming(fetch(wasmBinaryPath)).then(function() {
+              addStatus("WASM Binary Compile", "SUCCESS", "pass");
+            });
+          }
+
+          return WebAssembly.compile(buffer).then(function() {
+            addStatus("WASM Binary Compile", "SUCCESS (non-streaming fallback)", "warn");
+          });
+        })
+        .catch(function(err) {
+          addStatus(
+            "WASM Binary",
+            "NOT FOUND or FAILED: " + err.message,
+            "fail"
+          );
+          logError("WASM binary load error: " + err.message);
+          logError("Expected at: " + wasmBinaryPath);
+          logError("Run the WASM build first (scripts/build-wasm.sh)");
+        });
+
+      // -- Check 7: Load Emscripten glue code and call exported functions --
+      window.Module = {
+        noInitialRun: true,
+        locateFile: function(path) {
+          if (path === "blender.wasm") {
+            return wasmBinaryPath;
+          }
+          return path;
+        },
+        print: function(text) {
+          console.log(text);
+        },
+        printErr: function(text) {
+          console.error(text);
+          logError(text);
+        },
+        onRuntimeInitialized: onModuleReady
+      };
+
+      var glueScript = document.createElement("script");
+      glueScript.src = wasmPath;
+      glueScript.onerror = function() {
+        addStatus(
+          "Emscripten Glue",
+          "NOT FOUND at " + wasmPath,
+          "fail"
+        );
+        logError("Emscripten glue code not found at: " + wasmPath);
+        logError("Run the WASM build first (scripts/build-wasm.sh)");
+      };
+      glueScript.onload = function() {
+        addStatus("Emscripten Glue", "LOADED", "pass");
+
+        if (typeof Module !== "undefined" && Module.calledRun && !moduleReady) {
+          onModuleReady();
+        }
+      };
 
       document.head.appendChild(glueScript);
     })();

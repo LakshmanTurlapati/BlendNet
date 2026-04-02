@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-02T18:54:00.608Z",
+  "phase": "01",
+  "phase_name": "Headless WASM Build",
+  "phase_dir": ".planning/phases/01-headless-wasm-build",
+  "plan": 7,
+  "task": 2,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Add a reproducible real-.blend debug harness and symbolized failure mode",
+      "status": "done",
+      "commit": "f23aa73+dirty"
+    },
+    {
+      "id": 2,
+      "name": "Patch the loader/runtime path so a real sample loads and queries successfully",
+      "status": "in_progress",
+      "progress": "Updated source/wasm_headless_main.cc, fixed the MEM_new compile error by including BKE_wm_runtime.hh, identified the Emscripten Freetype/Wasm-exceptions longjmp mismatch, patched scripts/build-wasm-deps.sh to build freetype-legacysjlj, and patched scripts/patch-ninja-host-tools.sh to rewrite build.ninja to libfreetype-legacysjlj.a. A fresh Docker rebuild was started and intentionally interrupted during compile around [360/2355], so final link and runtime validation are still unverified."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 3,
+      "name": "Revalidate the Phase 01 release artifact and guard against regressions",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "The full Docker rebuild with the freetype-legacysjlj linker fix was interrupted before final link, so the final-link outcome is still unknown.",
+      "type": "technical",
+      "workaround": "Resume with docker compose run --rm blender-wasm-build bash scripts/build-wasm-full.sh and confirm the link no longer fails on emscripten_longjmp."
+    },
+    {
+      "description": "The real-.blend load path is still unresolved until the rebuilt artifact can run BLEND_SAMPLE_PATH=/tmp/Blender-282.blend node scripts/test-blend-query.js without trapping.",
+      "type": "technical",
+      "workaround": "If the rebuild succeeds, rerun the dedicated harness first and inspect the new failure boundary before changing more wrapper code."
+    },
+    {
+      "description": "The interrupted post-build Brotli step left build-wasm/blender.wasm.br at 0 bytes.",
+      "type": "technical",
+      "workaround": "Regenerate artifacts via the next full build before relying on compressed output or phase verification numbers."
+    },
+    {
+      "description": "01-05-SUMMARY.md and 01-06-SUMMARY.md still contain placeholder text.",
+      "type": "technical",
+      "workaround": "Replace placeholder text after Task 2 and Task 3 verification is complete so the phase artifacts match reality."
+    }
+  ],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Use scripts/test-blend-query.js with the official Blender-282.blend sample as the canonical phase-gap harness.",
+      "rationale": "It reproduces the missing Phase 01 truth end to end without manual browser steps.",
+      "phase": "01"
+    },
+    {
+      "decision": "Keep debug and symbolized diagnostics behind an env-controlled build mode instead of changing the default release flags.",
+      "rationale": "The gap needed debuggability without permanently bloating release artifacts.",
+      "phase": "01"
+    },
+    {
+      "decision": "Build and link against Emscripten's freetype-legacysjlj port variant when using Wasm exceptions.",
+      "rationale": "The default libfreetype.a path pulled in emscripten_longjmp references that are incompatible with the current Wasm-exception build mode.",
+      "phase": "01"
+    },
+    {
+      "decision": "Avoid destructive Docker cleanup such as volume pruning during pause.",
+      "rationale": "Space was reclaimed from stopped containers and cache, but resume should stay straightforward and existing data should be preserved.",
+      "phase": "01"
+    }
+  ],
+  "uncommitted_files": [
+    ".planning/ROADMAP.md",
+    ".planning/STATE.md",
+    ".planning/phases/01-headless-wasm-build/01-VERIFICATION.md",
+    "cmake/emscripten_overrides.cmake",
+    "cmake/fake_modules/FindFreetype.cmake",
+    "cmake/fake_modules/FindJPEG.cmake",
+    "cmake/fake_modules/FindPNG.cmake",
+    "cmake/fake_modules/FindZLIB.cmake",
+    "cmake/fake_modules/FindZstd.cmake",
+    "cmake/wasm_sources.cmake",
+    "scripts/build-wasm-deps.sh",
+    "scripts/build-wasm-full.sh",
+    "scripts/build-wasm.sh",
+    "scripts/patch-ninja-host-tools.sh",
+    "scripts/test-main-loop.js",
+    "scripts/test-memory.js",
+    "scripts/test-threading.js",
+    "scripts/test-wasm-load.js",
+    "source/wasm_headless_main.cc",
+    "web/index.html",
+    ".planning/phases/01-headless-wasm-build/01-05-SUMMARY.md",
+    ".planning/phases/01-headless-wasm-build/01-06-SUMMARY.md",
+    ".planning/phases/01-headless-wasm-build/01-07-PLAN.md",
+    ".planning/phases/01-headless-wasm-build/01-UAT.md",
+    "scripts/test-blend-query.js"
+  ],
+  "next_action": "Run docker compose run --rm blender-wasm-build bash scripts/build-wasm-full.sh; if it links cleanly, immediately run BLEND_SAMPLE_PATH=/tmp/Blender-282.blend node scripts/test-blend-query.js, then rerun the four existing Node validation scripts.",
+  "context_notes": "All Docker containers are stopped and there are no background processes left running. The last intentional state change was the freetype-legacysjlj fix in scripts/build-wasm-deps.sh and scripts/patch-ninja-host-tools.sh; the active build log confirmed both hooks fired before the rebuild was interrupted. Do not assume build-wasm/blender.wasm.br is valid, because it is currently 0 bytes from the aborted Brotli stage. The worktree was already dirty before pause, so resume carefully and do not revert unrelated changes."
+}

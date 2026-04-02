@@ -24,22 +24,46 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLF_api.hh"
+
 #include "BKE_blendfile.hh"
 #include "BKE_blender.hh"
+#include "BKE_callbacks.hh"
 #include "BKE_global.hh"
 #include "BKE_appdir.hh"
 #include "BKE_idtype.hh"
+#include "BKE_layer.hh"
+#include "BKE_lib_id.hh"
 #include "BKE_main.hh"
+#include "BKE_modifier.hh"
+#include "BKE_node.hh"
+#include "BKE_vfont.hh"
+#include "BKE_wm_runtime.hh"
 
 #include "BLI_listbase.h"
+#include "BLI_threads.h"
 
+#include "DEG_depsgraph.hh"
+
+#include "DNA_genfile.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_ID.h"
+#include "DNA_windowmanager_types.h"
 
 #include "BLO_readfile.hh"
 
 #include "CLG_log.h"
+
+#include "ED_datafiles.h"
+
+#include "IMB_imbuf.hh"
+
+#include "RNA_define.hh"
+
+#include "SEQ_modifier.hh"
+
+#include "wm.hh"
 
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
@@ -103,9 +127,8 @@ extern "C" {
 /**
  * Initialize Blender's core subsystems in headless mode.
  *
- * Calls CLG_init, BKE_appdir_init, BKE_idtype_init, and
- * BKE_blender_globals_init to bring up the minimal data pipeline
- * (DNA/RNA/BKE) without any display or window manager.
+ * Mirrors Blender's own blendfile-loading test bootstrap closely enough
+ * to safely parse real .blend files in a headless runtime.
  *
  * \return 0 on success, -1 on failure.
  */
@@ -121,17 +144,32 @@ int wasm_init()
 
   printf("[wasm] Initializing Blender WASM engine...\n");
 
-  /* Logging system. */
+  /* Mirror Blender's blendfile-loading test bootstrap to avoid loader-time crashes. */
   CLG_init();
-
-  /* Application directory paths. */
-  BKE_appdir_init();
-
-  /* ID type registry (needed for blend-file loading). */
-  BKE_idtype_init();
-
-  /* Global data (G_MAIN allocation). */
+  BLI_threadapi_init();
+  DNA_sdna_current_init();
   BKE_blender_globals_init();
+  BKE_idtype_init();
+  BKE_appdir_init();
+  IMB_init();
+  BKE_modifier_init();
+  seq::modifiers_init();
+  DEG_register_node_types();
+  RNA_init();
+  bke::node_system_init();
+  BKE_callback_global_init();
+  BKE_vfont_builtin_register(datatoc_bfont_pfb, datatoc_bfont_pfb_size);
+  BLF_init();
+
+  BKE_blender_globals_main_replace(BKE_main_new());
+
+  G.background = true;
+  G.factory_startup = true;
+
+  if (G.main->wm.first == nullptr) {
+    wmWindowManager *wm = BKE_id_new<wmWindowManager>(G.main, "WMdummy");
+    wm->runtime = MEM_new<bke::WindowManagerRuntime>(__func__);
+  }
 
   g_initialized = true;
 
@@ -175,6 +213,12 @@ int wasm_load_blend(const char *path)
     return -1;
   }
 
+  if (bfd->curscene) {
+    for (ViewLayer &view_layer : bfd->curscene->view_layers) {
+      BKE_view_layer_synced_ensure(*bfd->main, bfd->curscene, &view_layer);
+    }
+  }
+
   /* Replace current G_MAIN with the loaded data. */
   if (bfd->main) {
     BKE_blender_globals_main_replace(bfd->main);
@@ -191,7 +235,7 @@ int wasm_load_blend(const char *path)
   printf("[wasm] Loaded %d objects from %s\n", object_count, path);
 
   /* Free the BlendFileData wrapper (Main ownership already transferred). */
-  MEM_delete(bfd);
+  BLO_blendfiledata_free(bfd);
 
   return object_count;
 }

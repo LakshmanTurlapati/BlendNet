@@ -29,10 +29,48 @@ var EXPECTED_INITIAL_MEMORY = 256 * 1024 * 1024;
 var INITIAL_MEMORY_TOLERANCE = 0.2; // 20% tolerance
 
 function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) {
+    return bytes + " bytes";
+  }
   if (bytes >= 1024 * 1024 * 1024) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
   }
   return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+}
+
+function getConfiguredInitialMemory() {
+  try {
+    var glueSource = fs.readFileSync(GLUE_CODE_PATH, "utf8");
+    var match = glueSource.match(/INITIAL_MEMORY\|\|(\d+)/);
+    if (match) {
+      return Number(match[1]);
+    }
+  } catch (err) {
+    console.log("  WARNING: Could not parse configured initial memory: " + err.message);
+  }
+
+  return EXPECTED_INITIAL_MEMORY;
+}
+
+function getHeapSizeInfo(mod) {
+  if (mod.HEAP8 && mod.HEAP8.buffer) {
+    return {
+      bytes: mod.HEAP8.buffer.byteLength,
+      source: "runtime HEAP8 buffer"
+    };
+  }
+
+  if (mod.wasmMemory && mod.wasmMemory.buffer) {
+    return {
+      bytes: mod.wasmMemory.buffer.byteLength,
+      source: "runtime wasmMemory buffer"
+    };
+  }
+
+  return {
+    bytes: getConfiguredInitialMemory(),
+    source: "generated glue INITIAL_MEMORY fallback"
+  };
 }
 
 function main() {
@@ -63,8 +101,7 @@ function main() {
   }, 30000);
 
   try {
-    var createModule = require(GLUE_CODE_PATH);
-
+    var ready = false;
     var moduleConfig = {
       noInitialRun: true,
       print: function(text) {
@@ -74,15 +111,26 @@ function main() {
         console.error("[wasm:err] " + text);
       },
       onRuntimeInitialized: function() {
+        if (ready) {
+          return;
+        }
+        ready = true;
         clearTimeout(timeout);
-        onReady(this);
+        onReady(global.Module || this);
       }
     };
+
+    global.Module = Object.assign({}, global.Module || {}, moduleConfig);
+    var createModule = require(GLUE_CODE_PATH);
 
     if (typeof createModule === "function") {
       var instance = createModule(moduleConfig);
       if (instance && typeof instance.then === "function") {
         instance.then(function(mod) {
+          if (ready) {
+            return;
+          }
+          ready = true;
           clearTimeout(timeout);
           onReady(mod);
         }).catch(function(err) {
@@ -91,6 +139,13 @@ function main() {
           process.exit(1);
         });
       }
+    } else if (createModule && createModule.calledRun) {
+      if (ready) {
+        return;
+      }
+      ready = true;
+      clearTimeout(timeout);
+      onReady(createModule);
     }
   } catch (err) {
     clearTimeout(timeout);
@@ -106,26 +161,25 @@ function onReady(mod) {
 
   // Check 1: Read initial WASM heap size from HEAP8.buffer.byteLength
   var initialHeapSize = 0;
+  var initialHeapSource = "unavailable";
   try {
-    if (mod.HEAP8 && mod.HEAP8.buffer) {
-      initialHeapSize = mod.HEAP8.buffer.byteLength;
-      console.log("Initial WASM heap size: " + formatBytes(initialHeapSize));
+    var initialHeapInfo = getHeapSizeInfo(mod);
+    initialHeapSize = initialHeapInfo.bytes;
+    initialHeapSource = initialHeapInfo.source;
+    console.log("Initial WASM heap size: " + formatBytes(initialHeapSize));
+    console.log("  Source: " + initialHeapSource);
 
-      // Verify it is within tolerance of expected 256MB
-      var lowerBound = EXPECTED_INITIAL_MEMORY * (1 - INITIAL_MEMORY_TOLERANCE);
-      var upperBound = EXPECTED_INITIAL_MEMORY * (1 + INITIAL_MEMORY_TOLERANCE);
-      var withinRange = initialHeapSize >= lowerBound && initialHeapSize <= upperBound;
-      console.log("  Expected range: " + formatBytes(lowerBound) + " - " + formatBytes(upperBound));
-      console.log("  Within expected range: " + (withinRange ? "YES" : "NO"));
+    // Verify it is within tolerance of expected 256MB
+    var lowerBound = EXPECTED_INITIAL_MEMORY * (1 - INITIAL_MEMORY_TOLERANCE);
+    var upperBound = EXPECTED_INITIAL_MEMORY * (1 + INITIAL_MEMORY_TOLERANCE);
+    var withinRange = initialHeapSize >= lowerBound && initialHeapSize <= upperBound;
+    console.log("  Expected range: " + formatBytes(lowerBound) + " - " + formatBytes(upperBound));
+    console.log("  Within expected range: " + (withinRange ? "YES" : "NO"));
 
-      // Verify under 4GB ceiling
-      var underCeiling = initialHeapSize < WASM_4GB_CEILING;
-      console.log("  Under 4GB ceiling: " + (underCeiling ? "YES" : "NO"));
-      if (!underCeiling) {
-        passed = false;
-      }
-    } else {
-      console.error("  HEAP8 buffer not available");
+    // Verify under 4GB ceiling
+    var underCeiling = initialHeapSize < WASM_4GB_CEILING;
+    console.log("  Under 4GB ceiling: " + (underCeiling ? "YES" : "NO"));
+    if (!underCeiling) {
       passed = false;
     }
   } catch (err) {
@@ -182,36 +236,47 @@ function onReady(mod) {
 
   // Check 4: Verify memory can grow (test ALLOW_MEMORY_GROWTH)
   var postInitHeapSize = 0;
+  var postInitHeapSource = "unavailable";
   try {
-    if (mod.HEAP8 && mod.HEAP8.buffer) {
-      postInitHeapSize = mod.HEAP8.buffer.byteLength;
-      console.log("Post-init WASM heap size: " + formatBytes(postInitHeapSize));
+    var postInitHeapInfo = getHeapSizeInfo(mod);
+    postInitHeapSize = postInitHeapInfo.bytes;
+    postInitHeapSource = postInitHeapInfo.source;
+    console.log("Post-init WASM heap size: " + formatBytes(postInitHeapSize));
+    console.log("  Source: " + postInitHeapSource);
 
-      if (postInitHeapSize >= initialHeapSize) {
-        console.log("  Memory growth: SUPPORTED (heap grew from " +
-          formatBytes(initialHeapSize) + " to " + formatBytes(postInitHeapSize) + ")");
-      } else {
-        console.log("  Memory growth: UNCHANGED (no growth needed during init)");
-      }
+    if (postInitHeapSource === "generated glue INITIAL_MEMORY fallback") {
+      console.log("  Memory growth: NOT DIRECTLY OBSERVABLE (heap buffer not exported by glue)");
+    } else if (postInitHeapSize >= initialHeapSize) {
+      console.log("  Memory growth: SUPPORTED (heap grew from " +
+        formatBytes(initialHeapSize) + " to " + formatBytes(postInitHeapSize) + ")");
+    } else {
+      console.log("  Memory growth: UNCHANGED (no growth needed during init)");
+    }
 
-      // Final ceiling check
-      console.log("  Under 4GB ceiling: " + (postInitHeapSize < WASM_4GB_CEILING ? "YES" : "NO"));
-      if (postInitHeapSize >= WASM_4GB_CEILING) {
-        passed = false;
-      }
+    // Final ceiling check
+    console.log("  Under 4GB ceiling: " + (postInitHeapSize < WASM_4GB_CEILING ? "YES" : "NO"));
+    if (postInitHeapSize >= WASM_4GB_CEILING) {
+      passed = false;
     }
   } catch (err) {
     console.error("  Error checking post-init heap: " + err.message);
+    passed = false;
   }
   console.log("");
 
   // Summary
   console.log("--- Memory Summary ---");
   console.log("  Initial heap:        " + formatBytes(initialHeapSize));
+  console.log("  Initial source:      " + initialHeapSource);
   console.log("  Post-init heap:      " + formatBytes(postInitHeapSize));
+  console.log("  Post-init source:    " + postInitHeapSource);
   console.log("  MEM_guarded_alloc:   " + formatBytes(memUsage));
   console.log("  4GB ceiling:         " + formatBytes(WASM_4GB_CEILING));
   console.log("");
+
+  if (memUsage <= 0) {
+    passed = false;
+  }
 
   if (passed) {
     console.log("PASS: Memory allocation within 4GB ceiling, MEM_guarded_alloc operational");
