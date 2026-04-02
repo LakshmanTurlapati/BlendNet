@@ -5,20 +5,37 @@
 
 # Fix build.ninja host tool execution for cross-compilation.
 #
-# Strategy: Replace ALL host tools (makesdna, makesrna, datatoc, shader_tool)
-# with native executables built by GCC-14. For makesdna, the native 64-bit
-# executable produces DNA struct definitions with 64-bit pointer sizes.
-# The dna_verify.cc static assertions that check struct sizes at compile time
-# must be disabled since WASM32 has different struct layouts than the native host.
+# Strategy:
+# - makesdna, datatoc, shader_tool: replace with native executables built by GCC-14
+# - makesrna: keep the WASM executable, but ensure it runs via node unless a native
+#   binary exists explicitly
+#
+# For makesdna, the native 64-bit executable produces DNA struct definitions with
+# 64-bit pointer sizes. The dna_verify.cc static assertions that check struct sizes
+# at compile time must be disabled since WASM32 has different struct layouts than
+# the native host.
 #
 # Usage:
 #   ./scripts/patch-ninja-host-tools.sh <BUILD_DIR> <NATIVE_DIR>
 
 set -euo pipefail
 
-BUILD_DIR="${1:?Usage: patch-ninja-host-tools.sh <BUILD_DIR> <NATIVE_DIR>}"
-NATIVE_DIR="${2:?Usage: patch-ninja-host-tools.sh <BUILD_DIR> <NATIVE_DIR>}"
+BUILD_DIR_INPUT="${1:?Usage: patch-ninja-host-tools.sh <BUILD_DIR> <NATIVE_DIR>}"
+NATIVE_DIR_INPUT="${2:?Usage: patch-ninja-host-tools.sh <BUILD_DIR> <NATIVE_DIR>}"
+BUILD_DIR="$(cd "${BUILD_DIR_INPUT}" && pwd)"
+NATIVE_DIR="$(cd "${NATIVE_DIR_INPUT}" && pwd)"
 NINJA_FILE="${BUILD_DIR}/build.ninja"
+
+sed_in_place() {
+    local expr="${1:?missing sed expression}"
+    local file="${2:?missing sed file}"
+
+    if sed --version >/dev/null 2>&1; then
+        sed -i "${expr}" "${file}"
+    else
+        sed -i '' "${expr}" "${file}"
+    fi
+}
 
 echo "[patch-ninja] Patching build.ninja for native host tool execution"
 echo "[patch-ninja] Build dir: ${BUILD_DIR}"
@@ -38,27 +55,40 @@ else
     echo "[patch-ninja] Restored from backup"
 fi
 
-# === Step 1: Replace ALL host tools with native executables ===
+# === Step 1: Replace host tool references ===
 echo "[patch-ninja] Step 1: Replacing host tool references..."
 
 for tool in makesdna makesrna datatoc shader_tool; do
     NATIVE_PATH="${NATIVE_DIR}/${tool}"
+    JS_PATH="${BUILD_DIR}/bin/${tool}.js"
+    JS_PATTERN="[^ ]*/bin/${tool}\\.js"
+    NODE_JS_PATH="node ${JS_PATH}"
+
     if [ ! -x "${NATIVE_PATH}" ]; then
-        echo "[patch-ninja] SKIP: ${tool} -- native executable not found at ${NATIVE_PATH}"
+        if [ "${tool}" = "makesrna" ]; then
+            # Preserve the WASM build for makesrna, but make sure custom
+            # commands invoke it through node instead of trying to exec the
+            # generated .js file directly.
+            sed_in_place "s|/emsdk/node/[^ ]*/node \\(${JS_PATTERN}\\)|node \\1|g" "${NINJA_FILE}"
+            if ! grep -q "COMMAND = .* node ${JS_PATTERN}" "${NINJA_FILE}"; then
+                sed_in_place "s|COMMAND = \\(.*\\) \\(${JS_PATTERN}\\)\\( .*\\)|COMMAND = \\1 node \\2\\3|g" "${NINJA_FILE}"
+            fi
+            echo "[patch-ninja]   ${tool}: -> ${NODE_JS_PATH}"
+        else
+            echo "[patch-ninja] SKIP: ${tool} -- native executable not found at ${NATIVE_PATH}"
+        fi
         continue
     fi
 
-    JS_PATH="${BUILD_DIR}/bin/${tool}.js"
-
     # Replace "node path/bin/tool.js" with "native/tool" in COMMAND lines
-    sed -i "s|node ${JS_PATH}|${NATIVE_PATH}|g" "${NINJA_FILE}"
+    sed_in_place "s|node ${JS_PATTERN}|${NATIVE_PATH}|g" "${NINJA_FILE}"
     # Also handle cases with the full node path
-    sed -i "s|/emsdk/node/[^ ]*/node ${JS_PATH}|${NATIVE_PATH}|g" "${NINJA_FILE}"
+    sed_in_place "s|/emsdk/node/[^ ]*/node ${JS_PATTERN}|${NATIVE_PATH}|g" "${NINJA_FILE}"
     # Handle any remaining direct .js references
-    sed -i "s|${JS_PATH}|${NATIVE_PATH}|g" "${NINJA_FILE}"
+    sed_in_place "s|${JS_PATTERN}|${NATIVE_PATH}|g" "${NINJA_FILE}"
 
     # Replace linker rule with phony rule pointing to native executable
-    sed -i "/^build bin\/${tool}\.js: CXX_EXECUTABLE_LINKER/c\\build bin/${tool}.js: phony ${NATIVE_PATH}" "${NINJA_FILE}"
+    sed_in_place $'/^build bin\\/'"${tool}"$'\\.js: CXX_EXECUTABLE_LINKER/c\\\n''build bin/'"${tool}"$'.js: phony '"${NATIVE_PATH}" "${NINJA_FILE}"
 
     echo "[patch-ninja]   ${tool}: -> ${NATIVE_PATH}"
 done
@@ -89,12 +119,17 @@ for tool in makesdna makesrna datatoc shader_tool; do
     fi
 done
 
-# Check for remaining .js COMMAND references
-CMD_JS=$(grep "COMMAND = " "${NINJA_FILE}" | grep -c "bin/\(makesdna\|makesrna\|datatoc\|shader_tool\)\.js" 2>/dev/null || true)
-if [ "${CMD_JS}" -gt 0 ]; then
-    echo "[patch-ninja] WARNING: ${CMD_JS} remaining .js COMMAND references"
+# Check for remaining native-tool COMMAND references to .js wrappers.
+NATIVE_CMD_JS=$(grep "COMMAND = " "${NINJA_FILE}" | grep -c "bin/\(makesdna\|datatoc\|shader_tool\)\.js" 2>/dev/null || true)
+if [ "${NATIVE_CMD_JS}" -gt 0 ]; then
+    echo "[patch-ninja] WARNING: ${NATIVE_CMD_JS} native host tool COMMAND references still point to .js"
 else
-    echo "[patch-ninja] PASS: No .js COMMAND references remain"
+    echo "[patch-ninja] PASS: native host tool COMMAND references use native binaries"
+fi
+
+MAKESRNA_NODE=$(grep "COMMAND = " "${NINJA_FILE}" | grep -c "node .*bin/makesrna\\.js" 2>/dev/null || true)
+if [ "${MAKESRNA_NODE}" -gt 0 ]; then
+    echo "[patch-ninja] PASS: makesrna COMMAND uses node"
 fi
 
 echo "[patch-ninja] Patching complete."

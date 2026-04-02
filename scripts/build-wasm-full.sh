@@ -103,14 +103,14 @@ if [ ! -f /usr/include/sse2neon.h ] && [ -f "${SYSROOT}/include/sse2neon.h" ]; t
 fi
 
 # ==========================================================================
-# Stage 2: Build native host tools (datatoc, shader_tool) with GCC-14
+# Stage 2: Build native host tools with GCC-14
 # ==========================================================================
 log ""
 log "=== Stage 2: Native Host Tools + Node.js ==="
 
 # Hybrid strategy:
-# - datatoc + shader_tool: Build natively with GCC-14 (architecture-independent output)
-# - makesdna + makesrna: Run as WASM via Node.js (need 32-bit struct layouts)
+# - makesdna + datatoc + shader_tool: build natively with GCC-14
+# - makesrna: link as WASM and run through node from build.ninja
 
 # Install fmt headers for host tools
 if [ ! -f /usr/include/fmt/format.h ]; then
@@ -138,7 +138,7 @@ for tool in makesdna datatoc shader_tool; do
     fi
 done
 
-# Also ensure Node.js is available (for makesdna/makesrna WASM execution)
+# Also ensure Node.js is available for makesrna WASM execution.
 if ! command -v node &>/dev/null; then
     log "Installing Node.js..."
     apt-get update -qq && apt-get install -y -qq nodejs 2>&1 | tail -3
