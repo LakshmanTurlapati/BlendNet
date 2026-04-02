@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Minimal standalone build for Blender host tools (makesdna, datatoc).
+# Minimal standalone build for Blender host tools (makesdna, datatoc, shader_tool).
 # These must run on the build host during cross-compilation to WASM.
 # This CMakeLists.txt bypasses Blender's full build system to avoid
 # the macOS precompiled library dependency.
@@ -118,5 +118,32 @@ add_executable(datatoc
 )
 target_include_directories(datatoc PRIVATE ${COMMON_INCLUDES})
 
+# ---- shader_tool ----
+# Standalone executable for GPU shader processing.
+# No Blender library dependencies -- only standard C++ library.
+set(SHADER_TOOL_SRC_DIR "${BLENDER_SRC}/source/blender/gpu/shader_tool")
+add_executable(shader_tool
+  ${SHADER_TOOL_SRC_DIR}/attribute.cc
+  ${SHADER_TOOL_SRC_DIR}/enum.cc
+  ${SHADER_TOOL_SRC_DIR}/flow_control.cc
+  ${SHADER_TOOL_SRC_DIR}/function.cc
+  ${SHADER_TOOL_SRC_DIR}/grammar.cc
+  ${SHADER_TOOL_SRC_DIR}/intermediate.cc
+  ${SHADER_TOOL_SRC_DIR}/metadata.cc
+  ${SHADER_TOOL_SRC_DIR}/namespace.cc
+  ${SHADER_TOOL_SRC_DIR}/processor.cc
+  ${SHADER_TOOL_SRC_DIR}/resource_table.cc
+  ${SHADER_TOOL_SRC_DIR}/shader_tool.cc
+  ${SHADER_TOOL_SRC_DIR}/string.cc
+  ${SHADER_TOOL_SRC_DIR}/struct.cc
+  ${SHADER_TOOL_SRC_DIR}/template.cc
+  ${SHADER_TOOL_SRC_DIR}/union.cc
+  ${SHADER_TOOL_SRC_DIR}/lexit/lexit.cc
+)
+target_include_directories(shader_tool PRIVATE
+  ${SHADER_TOOL_SRC_DIR}
+  ${SHADER_TOOL_SRC_DIR}/lexit
+)
+
 # Report what was built
-message(STATUS "Host tools will be built: makesdna, datatoc")
+message(STATUS "Host tools will be built: makesdna, datatoc, shader_tool")
